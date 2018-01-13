@@ -25,7 +25,7 @@ public:
     virtual bool RequestJoinGame(PlayerSetup setup, const InterfaceSettings& settings, const Ports& ports = Ports()) = 0;
     virtual bool WaitJoinGame() = 0;
 
-    virtual bool RequestLeaveGame() = 0;
+    virtual bool RequestLeaveGame() = 0; // Only for multiplayer.
     virtual bool PollLeaveGame() = 0;
 
     virtual bool Step(int count = 1) = 0;
@@ -78,7 +78,8 @@ class AgentControlInterface {
 public:
     virtual ~AgentControlInterface() = default;
 
-    virtual bool Restart() = 0;
+    virtual bool Restart(bool hard_reset = false) = 0;
+    virtual bool WaitForRestart() = 0;
 };
 
 class ReplayControlInterface {

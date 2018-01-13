@@ -122,6 +122,13 @@ public:
     //! \return True if the game started, false if there was errors or the game didn't start, override OnError callback to see the exact errors.
     bool StartGame(const std::string& map_path = std::string());
 
+    //! Allows for being able to restart the session whenever the user needs to reset
+    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
+    void RestartGame(bool hard_reset = false);
+    //! Register for RestartGame to take place when the current game session is completed
+    //! \param register_state Boolean for whether we are registered to restart game
+    void RegisterForRestartGame(bool register_state);
+
     //! Creates a game but does not join the agents to the game
     //! \param map_path Path to the map to run.
     //! Returns true if the game was successfully created
@@ -152,6 +159,10 @@ public:
     //!     3. Unit actions batched from the ActionInterface are dispatched.
     //! \return False if the game has ended, true otherwise.
     bool Update();
+
+    //! Send a trigger map command to the current agents to execute
+    //! \return True if the map command request was sent to the agents successfully
+    bool SendMapCommand(const std::string& commandId);
 
     //! Requests for the currently running game to end.
     void LeaveGame();

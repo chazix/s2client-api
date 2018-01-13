@@ -117,26 +117,6 @@ int LaunchProcesses(ProcessSettings& process_settings, std::vector<Client*> clie
     return last_port;
 }
 
-static void CallOnStep(Agent* a) {
-    ControlInterface* control = a->Control();
-    if (!control->IsInGame()) {
-        a->OnGameEnd();
-        control->RequestLeaveGame(); // Only for multiplayer.
-        return;
-    }
-
-    ActionInterface* action = a->Actions();
-    control->IssueEvents(action->Commands());
-    if (action) {
-        action->SendActions();
-    }
-
-    ActionFeatureLayerInterface* action_feature_layer = a->ActionsFeatureLayer();
-    if (action_feature_layer) {
-        action_feature_layer->SendActions();
-    }
-}
-
 // Implementation.
 class CoordinatorImp {
 public:
@@ -145,6 +125,8 @@ public:
 
     bool game_ended_;
     bool starcraft_started_;
+    bool registered_for_restart_{false};
+    bool restart_game_occurred_{false};
 
     GameSettings game_settings_;
     ReplaySettings replay_settings_;
@@ -170,6 +152,14 @@ public:
 
     bool WaitForAllResponses();
     void AddAgent(Agent* agent);
+
+    //! Are we registered to RestartGame ?
+    bool IsRegisteredForRestartGame();
+    //! Sends the RestartGame request to all currently connected Agents
+    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
+    void RestartGame(bool hard_reset = false);
+    //! Has RestartGame request already occurred ?
+    bool HasRestartGameOccurred();
 
     bool Relaunch(ReplayObserver* replay_observer);
 
@@ -282,6 +272,39 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
+static void CallOnStep(CoordinatorImp* imp, Agent* a) {
+    ControlInterface* control = a->Control();
+    if (!control->IsInGame()) {
+        a->OnGameEnd();
+        
+        // RestartGame was called manually
+        if (imp->HasRestartGameOccurred()) {
+            return;
+        }
+        
+        if (!imp->IsRegisteredForRestartGame()) {
+            control->RequestLeaveGame();
+            return;
+        }
+        
+        if (!imp->HasRestartGameOccurred()) {
+            imp->RestartGame();
+        }
+        return;
+    }
+    
+    ActionInterface* action = a->Actions();
+    control->IssueEvents(action->Commands());
+    if (action) {
+        action->SendActions();
+    }
+    
+    ActionFeatureLayerInterface* action_feature_layer = a->ActionsFeatureLayer();
+    if (action_feature_layer) {
+        action_feature_layer->SendActions();
+    }
+}
+
 void CoordinatorImp::StepAgents() {
     auto step_agent = [this](Agent* a) {
         ControlInterface* control = a->Control();
@@ -301,7 +324,7 @@ void CoordinatorImp::StepAgents() {
         control->Step(process_settings_.step_size);
         control->WaitStep();
         if (process_settings_.multi_threaded) {
-            CallOnStep(a);
+            CallOnStep(this, a);
         }
     };
 
@@ -323,14 +346,14 @@ void CoordinatorImp::StepAgents() {
                 continue;
             }
 
-            CallOnStep(a);
+            CallOnStep(this, a);
         }
     }
 
 }
 
 void CoordinatorImp::StepAgentsRealtime() {
-    auto step_agent = [](Agent* a) {
+    auto step_agent = [this](Agent* a) {
         ControlInterface* control = a->Control();
         if (!control) {
             return;
@@ -360,8 +383,21 @@ void CoordinatorImp::StepAgentsRealtime() {
 
         if (!control->IsInGame()) {
             a->OnGameEnd();
-            a->Control()->RequestLeaveGame(); // Only for multiplayer.
-            return;
+
+            // RestartGame was called manually
+            if (restart_game_occurred_) {
+                return;
+            }
+            
+            if (!registered_for_restart_) {
+                a->Control()->RequestLeaveGame();
+                return;
+            }
+            
+            if (!restart_game_occurred_) {
+                RestartGame();
+                return;
+            }
         }
     };
 
@@ -673,6 +709,14 @@ bool Coordinator::CreateGame(const std::string& map_path) {
     return imp_->CreateGame();
 }
 
+void Coordinator::RestartGame(bool hard_reset) {
+    imp_->RestartGame(hard_reset);
+}
+
+void Coordinator::RegisterForRestartGame(bool register_state) {
+    imp_->registered_for_restart_ = register_state;
+}
+
 bool Coordinator::RemoteSaveMap(const void* data, int data_size, std::string remote_path) {
     for (auto c : imp_->agents_) {
         if (!c->Control()->RemoteSaveMap(data, data_size, remote_path))
@@ -815,12 +859,51 @@ bool Coordinator::Update() {
         }
     }
 
+    // last step the agents game restarted
+    if (imp_->HasRestartGameOccurred()) {
+        imp_->restart_game_occurred_ = false;
+    }
+
     // End the coordinator update on the idea that an error in the API should mean it's time to stop.
     if (error_occurred) {
         return false;
     }
 
     return !AllGamesEnded() || relaunched;
+}
+
+bool Coordinator::SendMapCommand(const std::string& commandId) {
+    for (auto a : imp_->agents_) {
+        ControlInterface* control = a->Control();
+        GameRequestPtr request = control->Proto().MakeRequest();
+        SC2APIProtocol::RequestMapCommand* mapCommand = request->mutable_map_command();
+        mapCommand->set_trigger_cmd(commandId.c_str());
+
+        if (!control->Proto().SendRequest(request)) {
+            return false;
+        }
+    }
+
+    for (auto a : imp_->agents_) {
+        ControlInterface* control = a->Control();
+        GameResponsePtr response = control->WaitForResponse();
+        if (!response.get()) {
+            assert(0);
+            return false;
+        }
+        if (!response->has_map_command()) {
+            assert(0);
+            return false;
+        }
+        const SC2APIProtocol::ResponseMapCommand& response_map_command = response->map_command();
+        if (response_map_command.has_error()) {
+            std::cerr << "ResponseMapCommand Error: " << response_map_command.Error_Name(response_map_command.error()) << std::endl;
+            std::cerr << "Invalid MapCommand: " << response_map_command.error_details() << std::endl;
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 bool Coordinator::AllGamesEnded() const {
@@ -842,6 +925,26 @@ bool Coordinator::AllGamesEnded() const {
 void CoordinatorImp::AddAgent(Agent* agent) {
     assert(agent);
     agents_.push_back(agent);
+}
+
+bool CoordinatorImp::IsRegisteredForRestartGame() {
+    return registered_for_restart_;
+}
+
+void CoordinatorImp::RestartGame(bool hard_reset) {
+    for (auto a : agents_) {
+        a->AgentControl()->Restart(hard_reset);
+    }
+    
+    for (auto a : agents_) {
+        a->AgentControl()->WaitForRestart();
+    }
+    
+    restart_game_occurred_ = true;
+}
+
+bool CoordinatorImp::HasRestartGameOccurred() {
+    return restart_game_occurred_;
 }
 
 void Coordinator::AddReplayObserver(ReplayObserver* replay_observer) {

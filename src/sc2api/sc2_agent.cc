@@ -3,8 +3,9 @@
 #include "sc2api/sc2_interfaces.h"
 #include "sc2api/sc2_control_interfaces.h"
 
-namespace sc2 {
+#include <iostream>
 
+namespace sc2 {
 
 //-------------------------------------------------------------------------------------------------
 // ActionImp: an implementation of an ActionInterface.
@@ -310,7 +311,8 @@ public:
     AgentControlImp(Agent* agent, ControlInterface* control_interface);
     ~AgentControlImp() = default;
 
-    bool Restart() override;
+    bool Restart(bool hard_reset) override;
+    bool WaitForRestart() override;
 };
 
 AgentControlImp::AgentControlImp(Agent* agent, ControlInterface* control_interface) :
@@ -321,34 +323,32 @@ AgentControlImp::AgentControlImp(Agent* agent, ControlInterface* control_interfa
     actions_feature_layer_ = std::make_unique<ActionFeatureLayerImp>(control_interface_->Proto(), *control_interface);
 }
 
-bool AgentControlImp::Restart() {
+bool AgentControlImp::Restart(bool hard_reset) {
     GameRequestPtr request = control_interface_->Proto().MakeRequest();
-    request->mutable_restart_game();
+    SC2APIProtocol::RequestRestartGame* restart_game = request->mutable_restart_game();
+    restart_game->set_hard_reset(hard_reset);
+
     if (!control_interface_->Proto().SendRequest(request)) {
         return false;
     }
 
-    GameResponsePtr response = control_interface_->WaitForResponse();
-    if (!response.get()) {
-        assert(0);
-        return false;
-    }
-    if (!response->has_restart_game()) {
-        assert(0);
-        return false;
-    }
-    const SC2APIProtocol::ResponseRestartGame& response_restart_game = response->restart_game();
-    if (response_restart_game.has_error()) {
-        // TODO: Output the error.
-        assert(0);
-        return false;
-    }
-
-    agent_->OnGameStart();
-
     return control_interface_->IsInGame();
 }
 
+bool AgentControlImp::WaitForRestart() {
+    GameResponsePtr response = control_interface_->WaitForResponse();
+    if (!response.get()) {
+        assert(0);
+    }
+    const SC2APIProtocol::ResponseRestartGame& response_restart_game = response->restart_game();
+    if (response_restart_game.has_error()) {
+        std::cerr << "ResponseRestartGame Error: " << response_restart_game.Error_Name(response_restart_game.error()) << std::endl;
+        std::cerr << response_restart_game.error_details() << std::endl;
+        return false;
+    }
+
+    return control_interface_->IsInGame();
+}
 
 //-------------------------------------------------------------------------------------------------
 // Agent implementation.
