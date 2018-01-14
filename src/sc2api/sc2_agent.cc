@@ -311,7 +311,7 @@ public:
     AgentControlImp(Agent* agent, ControlInterface* control_interface);
     ~AgentControlImp() = default;
 
-    bool Restart(bool hard_reset) override;
+    bool Restart(bool hard_reset = false) override;
     bool WaitForRestart() override;
 };
 
@@ -337,15 +337,26 @@ bool AgentControlImp::Restart(bool hard_reset) {
 
 bool AgentControlImp::WaitForRestart() {
     GameResponsePtr response = control_interface_->WaitForResponse();
+
     if (!response.get()) {
         assert(0);
+        return false;
     }
+
+    if (!response->has_restart_game()) {
+        assert(0);
+        return false;
+    }
+
     const SC2APIProtocol::ResponseRestartGame& response_restart_game = response->restart_game();
     if (response_restart_game.has_error()) {
-        std::cerr << "ResponseRestartGame Error: " << response_restart_game.Error_Name(response_restart_game.error()) << std::endl;
+        std::cerr << "ResponseRestartGame Error: " <<
+            response_restart_game.Error_Name(response_restart_game.error()) << std::endl;
         std::cerr << response_restart_game.error_details() << std::endl;
         return false;
     }
+
+    agent_->OnGameStart();
 
     return control_interface_->IsInGame();
 }
