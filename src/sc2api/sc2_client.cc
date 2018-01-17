@@ -1465,9 +1465,6 @@ ControlImp::ControlImp(Client& client) :
 
 ControlImp::~ControlImp() {
     proto_.Quit();
-#if SC2API_MESSAGE_LOGGING
-    responseMessageLog.m_file.close();
-#endif
 }
 
 ProtoInterface& ControlImp::Proto() {
@@ -1815,8 +1812,8 @@ GameResponsePtr ControlImp::WaitForResponse() {
 
 #if SC2API_MESSAGE_LOGGING
     if (response.get()) {
-        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << response->DebugString() << std::endl;
-        responseMessageLog << "--------------------" << std::endl;
+        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << response->ShortDebugString() << "\n";
+        responseMessageLog << "--------------------" << "\n";
     }
 #endif
 

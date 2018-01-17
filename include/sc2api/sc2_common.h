@@ -7,6 +7,9 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <queue>
+#include <mutex>
+#include <sstream>
 
 #define SC2API_MESSAGE_LOGGING _DEBUG
 
@@ -210,17 +213,33 @@ float Dot3D(const Point3D& a, const Point3D& b);
 //!< \return System time stamp in format (mm-dd-yy_hhmmss) or (hhmmss)
 std::string GetCurrentTimeStamp (bool include_date = false);
 
-struct Log {
-    std::ofstream m_file;
-
-    Log (const std::string& path, int open_mode);
+class Log {
+public:
+    Log(const std::string& name, int open_mode);
+    ~Log();
 
     template <typename T>
-    std::ostream& operator << (const T& output) {
-        std::ostream& stream = m_file << output;
-        stream.flush();
-        return stream;
+    Log& operator << (const T& output) {
+        std::stringstream stream;
+        stream << output;
+        std::lock_guard<std::mutex> lk(m_logMutex);
+        m_dataToLog.push(stream.str());
+        return *this;
     }
+
+private:
+    void LogDataHelper();
+
+    // thread function(s)
+    void LogWatcher();
+    // -----
+
+private:
+    bool m_activeLogging;
+    std::mutex m_logMutex;
+    std::thread m_logThread;
+    std::ofstream m_file;
+    std::queue<std::string> m_dataToLog;
 };
 
 }

@@ -220,8 +220,38 @@ std::string GetCurrentTimeStamp (bool include_date) {
     return timeStamp;
 }
 
-Log::Log(const std::string& path, int open_mode) {
-    m_file = std::ofstream(path.c_str(), open_mode);
+Log::Log(const std::string& name, int open_mode) {
+    m_activeLogging = true;
+    m_logThread = std::thread(&Log::LogWatcher, this);
+    // TODO => Save in user's documents
+    m_file = std::ofstream(name.c_str(), open_mode);
+}
+
+Log::~Log() {
+    m_activeLogging = false;
+    m_logThread.join();
+
+    // finish logging if there is still more to log
+    LogDataHelper();
+
+    m_file.close();
+}
+
+void Log::LogDataHelper() {
+    while (!m_dataToLog.empty()) {
+        std::lock_guard<std::mutex> lk(m_logMutex);
+        const std::string& toLog = std::move(m_dataToLog.front());
+        m_file << toLog;
+        m_dataToLog.pop();
+        m_file.flush();
+    }
+}
+
+void Log::LogWatcher() {
+    while (m_activeLogging) {
+        LogDataHelper();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 }

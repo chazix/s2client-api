@@ -121,8 +121,8 @@ bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_re
     }
 
 #if SC2API_MESSAGE_LOGGING
-    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << request->DebugString() << std::endl;
-    loggingRequestOutput << "--------------------" << std::endl;
+    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << request->ShortDebugString() << "\n";
+    loggingRequestOutput << "--------------------" << "\n";
 #endif
     connection_.Send(request.get());
 
