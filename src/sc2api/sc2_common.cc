@@ -2,6 +2,7 @@
 
 #include <random>
 #include <thread>
+#include <string>
 
 // Avoiding use of "thread_local" as that isn't supported in older versions of Xcode.
 #if defined(__clang__) || defined(__GNUC__)
@@ -198,6 +199,29 @@ void Normalize3D(Point3D& a) {
 
 float Dot3D(const Point3D& a, const Point3D& b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+std::string GetCurrentTimeStamp (bool include_date) {
+    time_t curTime = time(0);
+    tm timeStruct;
+    localtime_s(&timeStruct, &curTime);
+    std::string timeStamp;
+
+    if (include_date) {
+        timeStamp += std::to_string(timeStruct.tm_mon + 1) + "-" +
+            std::to_string(timeStruct.tm_mday) + "-" +
+            std::to_string(1900 + timeStruct.tm_year) + "_";
+    }
+
+    timeStamp += std::to_string(timeStruct.tm_hour) +
+        std::to_string(timeStruct.tm_min) +
+        std::to_string(timeStruct.tm_sec);
+
+    return timeStamp;
+}
+
+Log::Log(const std::string& path, int open_mode) {
+    m_file = std::ofstream(path.c_str(), open_mode);
 }
 
 }

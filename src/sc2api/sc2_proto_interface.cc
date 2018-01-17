@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <fstream>
 
 // This assert reflects a guarantee that each request is matched by the correct response.
 static_assert(
@@ -18,6 +19,7 @@ static_assert(
     int(SC2APIProtocol::Response::ResponseCase::kData)               == int(SC2APIProtocol::Request::RequestCase::kData)          &&
     int(SC2APIProtocol::Response::ResponseCase::kQuery)              == int(SC2APIProtocol::Request::RequestCase::kQuery)         &&
     int(SC2APIProtocol::Response::ResponseCase::kSaveReplay)         == int(SC2APIProtocol::Request::RequestCase::kSaveReplay)    &&
+    int(SC2APIProtocol::Response::ResponseCase::kMapCommand)         == int(SC2APIProtocol::Request::RequestCase::kMapCommand)    &&
     int(SC2APIProtocol::Response::ResponseCase::kQuit)               == int(SC2APIProtocol::Request::RequestCase::kQuit)          &&
     int(SC2APIProtocol::Response::ResponseCase::kPing)               == int(SC2APIProtocol::Request::RequestCase::kPing)          &&
     int(SC2APIProtocol::Response::ResponseCase::kDebug)              == int(SC2APIProtocol::Request::RequestCase::kDebug)         &&
@@ -50,6 +52,7 @@ const char* RequestResponseIDToName(int type) {
         case 18: return "SaveMap";
         case 19: return "Ping";
         case 20: return "Debug";
+        case 21: return "MapCommand";
     }
 
     return "Unknown";
@@ -83,6 +86,10 @@ GameRequestPtr ProtoInterface::MakeRequest() {
     return std::make_shared<SC2APIProtocol::Request>(SC2APIProtocol::Request());
 }
 
+#if SC2API_MESSAGE_LOGGING
+static sc2::Log loggingRequestOutput(GetCurrentTimeStamp(true) + "_requestlog.txt", std::fstream::out | std::fstream::app);
+#endif
+
 bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_requests) {
     uint32_t request_type = static_cast<uint32_t>(request->request_case());
     if (request_type >= count_uses_.size()) {
@@ -113,6 +120,10 @@ bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_re
         return false;
     }
 
+#if SC2API_MESSAGE_LOGGING
+    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << request->DebugString() << std::endl;
+    loggingRequestOutput << "--------------------" << std::endl;
+#endif
     connection_.Send(request.get());
 
     // Expect a certain response.

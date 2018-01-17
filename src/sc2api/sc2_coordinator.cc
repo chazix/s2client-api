@@ -272,6 +272,8 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
+static std::mutex s_threadedMutex;
+
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
@@ -287,6 +289,14 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
             return;
         }
         
+        if (imp->process_settings_.multi_threaded) {
+            std::lock_guard<std::mutex> lk(s_threadedMutex);
+            if (!imp->HasRestartGameOccurred()) {
+                imp->RestartGame();
+            }
+            return;
+        }
+
         if (!imp->HasRestartGameOccurred()) {
             imp->RestartGame();
         }
@@ -323,6 +333,7 @@ void CoordinatorImp::StepAgents() {
 
         control->Step(process_settings_.step_size);
         control->WaitStep();
+
         if (process_settings_.multi_threaded) {
             CallOnStep(this, a);
         }
@@ -932,6 +943,8 @@ bool CoordinatorImp::IsRegisteredForRestartGame() {
 }
 
 void CoordinatorImp::RestartGame(bool hard_reset) {
+    restart_game_occurred_ = true;
+
     for (auto a : agents_) {
         a->AgentControl()->Restart(hard_reset);
     }
@@ -939,8 +952,6 @@ void CoordinatorImp::RestartGame(bool hard_reset) {
     for (auto a : agents_) {
         a->AgentControl()->WaitForRestart();
     }
-    
-    restart_game_occurred_ = true;
 }
 
 bool CoordinatorImp::HasRestartGameOccurred() {

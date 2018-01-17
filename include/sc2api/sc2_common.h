@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <fstream>
+
+#define SC2API_MESSAGE_LOGGING _DEBUG
 
 namespace sc2 {
 
@@ -201,5 +204,23 @@ void Normalize3D(Point3D& a);
 //!< \param b Second vector.
 //!< \return Dot product.
 float Dot3D(const Point3D& a, const Point3D& b);
+
+//! Retrieves the current system time stamp
+//!< \param include_date Includes the date (mm-dd-yy) with the time stamp else just (hhmmss)
+//!< \return System time stamp in format (mm-dd-yy_hhmmss) or (hhmmss)
+std::string GetCurrentTimeStamp (bool include_date = false);
+
+struct Log {
+    std::ofstream m_file;
+
+    Log (const std::string& path, int open_mode);
+
+    template <typename T>
+    std::ostream& operator << (const T& output) {
+        std::ostream& stream = m_file << output;
+        stream.flush();
+        return stream;
+    }
+};
 
 }

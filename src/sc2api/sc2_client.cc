@@ -1379,6 +1379,10 @@ public:
 
     std::mutex error_mutex_;
 
+#if SC2API_MESSAGE_LOGGING
+    sc2::Log responseMessageLog;
+#endif
+
     ProtoInterface& Proto() override;
 
     virtual bool RemoteSaveMap(const void* data, int data_size, std::string remote_path) override;
@@ -1448,7 +1452,11 @@ ControlImp::ControlImp(Client& client) :
     is_multiplayer_(false),
     observation_imp_(nullptr),
     query_imp_(nullptr),
-    debug_imp_(nullptr) {
+    debug_imp_(nullptr),
+#if SC2API_MESSAGE_LOGGING
+    responseMessageLog(GetCurrentTimeStamp(true) + "_responselog.txt", std::fstream::out | std::fstream::app)
+#endif 
+{
     proto_.SetControl(this);
     observation_imp_ = std::make_unique<ObservationImp>(proto_, observation_, response_, *this);
     query_imp_ = std::make_unique<QueryImp>(proto_, *this, *observation_imp_);
@@ -1457,6 +1465,9 @@ ControlImp::ControlImp(Client& client) :
 
 ControlImp::~ControlImp() {
     proto_.Quit();
+#if SC2API_MESSAGE_LOGGING
+    responseMessageLog.m_file.close();
+#endif
 }
 
 ProtoInterface& ControlImp::Proto() {
@@ -1801,6 +1812,13 @@ GameResponsePtr ControlImp::WaitForResponse() {
     assert(app_state_ == AppState::normal);
 
     GameResponsePtr response = proto_.WaitForResponseInternal();
+
+#if SC2API_MESSAGE_LOGGING
+    if (response.get()) {
+        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << response->DebugString() << std::endl;
+        responseMessageLog << "--------------------" << std::endl;
+    }
+#endif
 
     if (response.get() && response->error_size() < 1) {
         // Everything is good. No need for any error handling.
