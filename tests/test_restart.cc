@@ -76,8 +76,10 @@ public:
         ++count_restarts_;
         std::cout << "Restart test: " << std::to_string(count_restarts_) << " of " <<
             std::to_string(NumRestartsToTest) << " complete." << std::endl;
-        if (!IsFinished())
+        if (!IsFinished()) {
             AgentControl()->Restart();
+            AgentControl()->WaitForRestart();
+        }
     }
 };
 
@@ -101,7 +103,6 @@ bool TestFastRestartSinglePlayer(int argc, char** argv) {
     // Start the game.
     coordinator.LaunchStarcraft();
     coordinator.StartGame(sc2::kMapEmpty);
-
 
     // Step forward the game simulation.
     while (!bot.IsFinished()) {
