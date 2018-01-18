@@ -126,7 +126,6 @@ public:
     bool game_ended_;
     bool starcraft_started_;
     bool registered_for_restart_{false};
-    bool restart_game_occurred_{false};
 
     GameSettings game_settings_;
     ReplaySettings replay_settings_;
@@ -158,8 +157,10 @@ public:
     //! Sends the RestartGame request to all currently connected Agents
     //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
     void RestartGame(bool hard_reset = false);
-    //! Has RestartGame request already occurred ?
-    bool HasRestartGameOccurred();
+    //! Send the RestartGame request to the particular agent, this is utilized during multi-threading
+    //! \param agent Pointer to the agent to send the RestartGame request to
+    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
+    void RestartGame(Agent* const agent, bool hard_reset = false);
 
     bool Relaunch(ReplayObserver* replay_observer);
 
@@ -272,37 +273,35 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
-static std::mutex s_threadedMutex;
-
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
         a->OnGameEnd();
-        
-        // RestartGame was called manually
-        if (imp->HasRestartGameOccurred()) {
-            return;
-        }
-        
         if (!imp->IsRegisteredForRestartGame()) {
             control->RequestLeaveGame();
             return;
         }
-        
-        if (imp->process_settings_.multi_threaded) {
-            std::lock_guard<std::mutex> lk(s_threadedMutex);
-            if (!imp->HasRestartGameOccurred()) {
-                imp->RestartGame();
-            }
-            return;
-        }
 
-        if (!imp->HasRestartGameOccurred()) {
-            imp->RestartGame();
+        // these need to be executed here due to the agent parallelism when multi_threaded
+        if (imp->process_settings_.multi_threaded) {
+            // RestartGame was called manually
+            if (a->AgentControl()->HasRestartGameOccurred()) {
+                return;
+            }
+
+            if (!a->AgentControl()->HasRestartGameOccurred()) {
+                imp->RestartGame(a);
+                return;
+            }
         }
         return;
     }
     
+    // RestartGame was requested during the last step
+    if (a->AgentControl()->HasRestartGameOccurred()) {
+        a->AgentControl()->SetRestartGameOccurred(false);
+    }
+
     ActionInterface* action = a->Actions();
     control->IssueEvents(action->Commands());
     if (action) {
@@ -394,21 +393,29 @@ void CoordinatorImp::StepAgentsRealtime() {
 
         if (!control->IsInGame()) {
             a->OnGameEnd();
-
-            // RestartGame was called manually
-            if (restart_game_occurred_) {
-                return;
-            }
-            
             if (!registered_for_restart_) {
                 a->Control()->RequestLeaveGame();
                 return;
             }
-            
-            if (!restart_game_occurred_) {
-                RestartGame();
-                return;
+
+            // these need to be executed here due to the agent parallelism when multi_threaded
+            if (process_settings_.multi_threaded) {
+                // RestartGame was called manually
+                if (a->AgentControl()->HasRestartGameOccurred()) {
+                    return;
+                }
+
+                if (!a->AgentControl()->HasRestartGameOccurred()) {
+                    RestartGame(a);
+                    return;
+                }
             }
+            return;
+        }
+
+        // RestartGame was requested during the last step
+        if (a->AgentControl()->HasRestartGameOccurred()) {
+            a->AgentControl()->SetRestartGameOccurred(false);
         }
     };
 
@@ -835,6 +842,26 @@ bool Coordinator::Update() {
         }
     }
 
+    // check agents for needing to RestartGame
+    if (!imp_->process_settings_.multi_threaded && imp_->IsRegisteredForRestartGame()) {
+        for (auto agent : imp_->agents_) {
+            if (agent->Control()->IsInGame()) {
+                continue;
+            }
+
+            AgentControlInterface* agentControl = agent->AgentControl();
+            // RestartGame may have been called manually
+            if (agentControl->HasRestartGameOccurred()) {
+                continue;
+            }
+
+            if (!agentControl->HasRestartGameOccurred()) {
+                imp_->RestartGame();
+                break; // can break due to this RestartGame requesting restart for all agents
+            }
+        }
+    }
+
     if (imp_->replay_observers_.size() > 0) {
         if (imp_->AnyObserverAvailable()) {
             imp_->StartReplay();
@@ -868,11 +895,6 @@ bool Coordinator::Update() {
                 }
             }
         }
-    }
-
-    // last step the agents game restarted
-    if (imp_->HasRestartGameOccurred()) {
-        imp_->restart_game_occurred_ = false;
     }
 
     // End the coordinator update on the idea that an error in the API should mean it's time to stop.
@@ -943,19 +965,30 @@ bool CoordinatorImp::IsRegisteredForRestartGame() {
 }
 
 void CoordinatorImp::RestartGame(bool hard_reset) {
-    restart_game_occurred_ = true;
+    if (!process_settings_.multi_threaded) {
+        for (auto a : agents_) {
+            // OnGameEnd doesn't get called in non-realtime mode due to early out on line 358
+            if (!process_settings_.realtime) {
+                a->OnGameEnd();
+            }
+            a->AgentControl()->Restart(hard_reset);
+        }
 
-    for (auto a : agents_) {
-        a->AgentControl()->Restart(hard_reset);
-    }
-    
-    for (auto a : agents_) {
-        a->AgentControl()->WaitForRestart();
+        for (auto a : agents_) {
+            a->AgentControl()->WaitForRestart();
+        }
     }
 }
 
-bool CoordinatorImp::HasRestartGameOccurred() {
-    return restart_game_occurred_;
+void CoordinatorImp::RestartGame(Agent* const agent, bool hard_reset) {
+    if (process_settings_.multi_threaded) {
+        agent->AgentControl()->Restart(hard_reset);
+        agent->AgentControl()->WaitForRestart();
+        return;
+    }
+
+    // fall back to non-threaded RestartGame
+    RestartGame(hard_reset);
 }
 
 void Coordinator::AddReplayObserver(ReplayObserver* replay_observer) {

@@ -80,6 +80,12 @@ public:
 
     virtual bool Restart(bool hard_reset = false) = 0;
     virtual bool WaitForRestart() = 0;
+
+    void SetRestartGameOccurred(bool value) { restart_game_occurred_ = value; }
+    bool HasRestartGameOccurred() { return restart_game_occurred_; }
+
+private:
+    bool restart_game_occurred_{false};
 };
 
 class ReplayControlInterface {

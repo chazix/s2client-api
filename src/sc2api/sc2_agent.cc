@@ -332,6 +332,8 @@ bool AgentControlImp::Restart(bool hard_reset) {
         return false;
     }
 
+    SetRestartGameOccurred(true);
+
     return control_interface_->IsInGame();
 }
 

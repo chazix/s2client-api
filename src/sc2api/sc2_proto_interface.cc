@@ -15,6 +15,7 @@ static_assert(
     int(SC2APIProtocol::Response::ResponseCase::kGameInfo)           == int(SC2APIProtocol::Request::RequestCase::kGameInfo)      &&
     int(SC2APIProtocol::Response::ResponseCase::kObservation)        == int(SC2APIProtocol::Request::RequestCase::kObservation)   &&
     int(SC2APIProtocol::Response::ResponseCase::kAction)             == int(SC2APIProtocol::Request::RequestCase::kAction)        &&
+    int(SC2APIProtocol::Response::ResponseCase::kObsAction)          == int(SC2APIProtocol::Request::RequestCase::kObsAction)     &&
     int(SC2APIProtocol::Response::ResponseCase::kStep)               == int(SC2APIProtocol::Request::RequestCase::kStep)          &&
     int(SC2APIProtocol::Response::ResponseCase::kData)               == int(SC2APIProtocol::Request::RequestCase::kData)          &&
     int(SC2APIProtocol::Response::ResponseCase::kQuery)              == int(SC2APIProtocol::Request::RequestCase::kQuery)         &&
@@ -52,7 +53,8 @@ const char* RequestResponseIDToName(int type) {
         case 18: return "SaveMap";
         case 19: return "Ping";
         case 20: return "Debug";
-        case 21: return "MapCommand";
+        case 21: return "ObservationAction";
+        case 22: return "MapCommand";
     }
 
     return "Unknown";
