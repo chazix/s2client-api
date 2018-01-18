@@ -1812,7 +1812,9 @@ GameResponsePtr ControlImp::WaitForResponse() {
 
 #if SC2API_MESSAGE_LOGGING
     if (response.get()) {
-        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << response->ShortDebugString() << "\n";
+        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(response->response_case()) << "\n";
+        responseMessageLog << "    status: " << Status_Name(response->status()) << "\n";
+        responseMessageLog << "    ByteSize: " << response->ByteSize() << "\n";
         responseMessageLog << "--------------------" << "\n";
     }
 #endif

@@ -123,7 +123,10 @@ bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_re
     }
 
 #if SC2API_MESSAGE_LOGGING
-    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << request->ShortDebugString() << "\n";
+    std::string messageEnumTypeName;
+    request->descriptor()->FindEnumTypeByName(messageEnumTypeName);
+    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(request->request_case()) << "\n";
+    loggingRequestOutput << "    ByteSize: " << request->ByteSize() << "\n";
     loggingRequestOutput << "--------------------" << "\n";
 #endif
     connection_.Send(request.get());
