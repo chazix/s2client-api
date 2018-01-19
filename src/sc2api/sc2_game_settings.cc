@@ -35,10 +35,11 @@ ReplaySettings::ReplaySettings() :
     player_id(1) {
 }
 
-const char* kMapBelShirVestigeLE = "Ladder/(2)Bel'ShirVestigeLE (Void).SC2Map";
-const char* kMapEmpty            = "Test/Empty.SC2Map";
-const char* kMapEmptyLong        = "Test/EmptyLong.SC2Map";
-const char* kMapEmptyTall        = "Test/EmptyTall.SC2Map";
-const char* kMapMarineMicro      = "Example/MarineMicro.SC2Map";
+const char* kMapBelShirVestigeLE       = "Ladder/(2)Bel'ShirVestigeLE (Void).SC2Map";
+const char* kMapEmpty                  = "Test/Empty.SC2Map";
+const char* kMapEmptyLong              = "Test/EmptyLong.SC2Map";
+const char* kMapEmptyTall              = "Test/EmptyTall.SC2Map";
+const char* kMapFastRestartMultiplayer = "Test/FastRestartMultiplayer.SC2Map";
+const char* kMapMarineMicro            = "Example/MarineMicro.SC2Map";
 
 }

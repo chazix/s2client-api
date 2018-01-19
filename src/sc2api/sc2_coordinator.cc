@@ -799,6 +799,18 @@ void Coordinator::LaunchStarcraft() {
     imp_->last_port_ = port_start;
 }
 
+void Coordinator::TerminateStarcraft() {
+    assert(imp_->starcraft_started_);
+
+    for (auto pinfo : imp_->process_settings_.process_info) {
+        TerminateProcess(pinfo.process_id);
+    }
+
+    imp_->agents_.clear();
+    imp_->process_settings_.process_info.clear();
+    imp_->starcraft_started_ = false;
+}
+
 void Coordinator::Connect(int port) {
     while (imp_->process_settings_.process_info.size() < imp_->agents_.size()) {
         imp_->process_settings_.process_info.push_back(

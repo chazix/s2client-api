@@ -110,6 +110,8 @@ public:
 
     //! Uses settings gathered from LoadSettings, specifically the path to the executable, to run StarCraft II.
     void LaunchStarcraft();
+    //! Terminates the StarCraft II process and allows for the coordinator to LaunchStarcraft again
+    void TerminateStarcraft();
 
     //! Attaches to a running Starcraft.
     void Connect(int port);
