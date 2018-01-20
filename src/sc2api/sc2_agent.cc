@@ -312,7 +312,7 @@ public:
     ~AgentControlImp() = default;
 
     bool Restart() override;
-    bool WaitForRestart(bool* needMultiplayerHardReset = nullptr) override;
+    bool WaitForRestart(bool* outNeedsMultiplayerHardReset = nullptr) override;
 };
 
 AgentControlImp::AgentControlImp(Agent* agent, ControlInterface* control_interface) :
@@ -336,7 +336,7 @@ bool AgentControlImp::Restart() {
     return control_interface_->IsInGame();
 }
 
-bool AgentControlImp::WaitForRestart(bool* needMultiplayerHardReset) {
+bool AgentControlImp::WaitForRestart(bool* outNeedsMultiplayerHardReset) {
     GameResponsePtr response = control_interface_->WaitForResponse();
 
     if (!response.get()) {
@@ -357,8 +357,8 @@ bool AgentControlImp::WaitForRestart(bool* needMultiplayerHardReset) {
         return false;
     }
 
-    if (needMultiplayerHardReset && response_restart_game.need_multiplayer_hard_reset()) {
-        *needMultiplayerHardReset = true;
+    if (outNeedsMultiplayerHardReset != nullptr) {
+        *outNeedsMultiplayerHardReset = response_restart_game.need_multiplayer_hard_reset();
     }
     else {
         agent_->OnGameStart();
