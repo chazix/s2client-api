@@ -110,7 +110,7 @@ public:
 
     //! Uses settings gathered from LoadSettings, specifically the path to the executable, to run StarCraft II.
     void LaunchStarcraft();
-    //! Terminates the StarCraft II process and allows for the coordinator to LaunchStarcraft again
+    //! Terminates the StarCraft II process and allows for the coordinator to LaunchStarcraft again, this will clear out the agents
     void TerminateStarcraft();
 
     //! Attaches to a running Starcraft.
@@ -125,8 +125,7 @@ public:
     bool StartGame(const std::string& map_path = std::string());
 
     //! Allows for being able to restart the session whenever the user needs to reset
-    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
-    void RestartGame(bool hard_reset = false);
+    void RestartGame();
     //! Register for RestartGame to take place when the current game session is completed
     //! \param register_state Boolean for whether we are registered to restart game
     void RegisterForRestartGame(bool register_state);

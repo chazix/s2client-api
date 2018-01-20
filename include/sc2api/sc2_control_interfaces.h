@@ -78,8 +78,10 @@ class AgentControlInterface {
 public:
     virtual ~AgentControlInterface() = default;
 
-    virtual bool Restart(bool hard_reset = false) = 0;
-    virtual bool WaitForRestart() { return false; }
+    virtual bool Restart() = 0;
+    virtual bool WaitForRestart(bool* inNeedMultiplayerRestart = nullptr) {
+        return inNeedMultiplayerRestart == nullptr;
+    }
 
     void SetRestartGameOccurred(bool value) { restart_game_occurred_ = value; }
     bool HasRestartGameOccurred() { return restart_game_occurred_; }

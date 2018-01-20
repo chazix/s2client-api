@@ -138,6 +138,7 @@ public:
     bool StartGame();
     bool CreateGame();
     bool JoinGame();
+    bool JoinGame(Agent* const agent);
     void StartReplay();
     bool ShouldIgnore(ReplayObserver* r, const std::string& file);
     bool ShouldRelaunch(ReplayObserver* r);
@@ -155,12 +156,10 @@ public:
     //! Are we registered to RestartGame ?
     bool IsRegisteredForRestartGame();
     //! Sends the RestartGame request to all currently connected Agents
-    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
-    void RestartGame(bool hard_reset = false);
+    void RestartGame();
     //! Send the RestartGame request to the particular agent, this is utilized during multi-threading
     //! \param agent Pointer to the agent to send the RestartGame request to
-    //! \param hard_reset Boolean for whether to RestartGame with a full hard reset or a fast reset
-    void RestartGame(Agent* const agent, bool hard_reset = false);
+    void RestartGame(Agent* const agent);
 
     bool Relaunch(ReplayObserver* replay_observer);
 
@@ -665,6 +664,59 @@ bool CoordinatorImp::JoinGame() {
     return true;
 }
 
+bool CoordinatorImp::JoinGame(Agent* const agent) {
+    if (agent == nullptr) {
+        return false;
+    }
+    
+    // find the index of this agent, corresponds to same location in game_settings_.player_setup
+    unsigned index = 0;
+    for (const auto a : agents_) {
+        if (a == agent) {
+            break;
+        }
+        ++index;
+    }
+
+    ControlInterface* control = agent->Control();
+
+    bool game_join_request = control->RequestJoinGame(game_settings_.player_setup[index],
+        interface_settings_,
+        game_settings_.ports);
+
+    if (!game_join_request) {
+        std::cerr << "Unable to join game." << std::endl;
+        exit(1);
+    }
+
+    agent->Control()->WaitJoinGame();
+
+    bool errors_occurred = false;
+    const std::vector<ClientError>& client_errors = control->GetClientErrors();
+    if (!client_errors.empty()) {
+        agent->OnError(client_errors, control->GetProtocolErrors());
+        errors_occurred = true;
+    }
+
+    control->UseGeneralizedAbility(use_generalized_ability_id);
+
+    if (errors_occurred) {
+        return false;
+    }
+
+    // Run client on game start.
+    control->GetObservation();
+
+    agent->OnGameFullStart();
+
+    control->OnGameStart();
+    agent->OnGameStart();
+
+    control->IssueEvents(agent->Actions()->Commands());
+
+    return true;
+}
+
 bool CoordinatorImp::StartGame() {
     assert(starcraft_started_);
     bool is_game_created = CreateGame();
@@ -729,8 +781,8 @@ bool Coordinator::CreateGame(const std::string& map_path) {
     return imp_->CreateGame();
 }
 
-void Coordinator::RestartGame(bool hard_reset) {
-    imp_->RestartGame(hard_reset);
+void Coordinator::RestartGame() {
+    imp_->RestartGame();
 }
 
 void Coordinator::RegisterForRestartGame(bool register_state) {
@@ -870,8 +922,13 @@ bool Coordinator::Update() {
             }
 
             if (!agentControl->HasRestartGameOccurred()) {
-                imp_->RestartGame();
-                break; // can break due to this RestartGame requesting restart for all agents
+                if (!imp_->process_settings_.realtime) {
+                    // need to send RequestRestartGame simultaneous to the clients in non-realtime mode
+                    imp_->RestartGame();
+                    break;
+                }
+
+                imp_->RestartGame(agent);
             }
         }
     }
@@ -978,23 +1035,61 @@ bool CoordinatorImp::IsRegisteredForRestartGame() {
     return registered_for_restart_;
 }
 
-void CoordinatorImp::RestartGame(bool hard_reset) {
+void CoordinatorImp::RestartGame() {
     for (auto a : agents_) {
         // OnGameEnd doesn't get called in non-realtime mode due to early out on line 358
         if (!process_settings_.realtime) {
             a->OnGameEnd();
         }
-        a->AgentControl()->Restart(hard_reset);
+        a->AgentControl()->Restart();
     }
 
+    bool needMultiplayerHardReset = false;
     for (auto a : agents_) {
-        a->AgentControl()->WaitForRestart();
+        a->AgentControl()->WaitForRestart(&needMultiplayerHardReset);
+    }
+
+    if (needMultiplayerHardReset) {
+        for (auto a : agents_) {
+            a->Control()->RequestLeaveGame();
+            a->Control()->WaitForResponse();
+        }
+
+        CreateGame();
+        JoinGame();
     }
 }
 
-void CoordinatorImp::RestartGame(Agent* const agent, bool hard_reset) {
-    agent->AgentControl()->Restart(hard_reset);
-    agent->AgentControl()->WaitForRestart();
+void CoordinatorImp::RestartGame(Agent* const agent) {
+    bool needMultiplayerHardReset = false;
+    agent->AgentControl()->Restart();
+    agent->AgentControl()->WaitForRestart(&needMultiplayerHardReset);
+
+    if (needMultiplayerHardReset) {
+        if (process_settings_.multi_threaded) {
+            agent->Control()->RequestLeaveGame();
+            agent->Control()->WaitForResponse();
+
+            // only want one agent to initiate the CreateGame request
+            if (agent == agents_.front()) {
+                agent->Control()->CreateGame(game_settings_.map_name, game_settings_.player_setup, process_settings_.realtime);
+            }
+
+            JoinGame(agent);
+            return;
+        }
+        
+        // need to wait until this is the last agent being iterated over that's passed in
+        if (agent == agents_.back()) {
+            for (auto a : agents_) {
+                a->Control()->RequestLeaveGame();
+                a->Control()->WaitForResponse();
+            }
+
+            CreateGame();
+            JoinGame();
+        }
+    }
 }
 
 void Coordinator::AddReplayObserver(ReplayObserver* replay_observer) {

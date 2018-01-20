@@ -235,7 +235,7 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     DoSomethingBot bot;
 
     /* ----------------------------------------------------------- */
-    // Single-player Restart
+    // Single-player Non-Real-Time Restart Tests
     /* ----------------------------------------------------------- */
     coordinator.SetParticipants({
         CreateParticipant(sc2::Race::Terran, &bot),
@@ -253,25 +253,6 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     }
     /* ----------------------------------------------------------- */
 
-#if 0
-    /* Test non multi-threaded real-time single player restart */
-    std::cout << "    Testing non multi-threaded real-time singleplayer restart" << std::endl;
-    bot.count_restarts_ = 0;
-    coordinator.SetMultithreaded(false);
-    coordinator.SetRealtime(true);
-
-    // Step forward the game simulation.
-    while (!bot.IsFinished()) {
-        coordinator.Update();
-    }
-
-    coordinator.LeaveGame();
-    coordinator.WaitForAllResponses();
-    coordinator.CreateGame(sc2::kMapEmpty);
-    coordinator.JoinGame();
-    /* ----------------------------------------------------------- */
-#endif
-
     bot.AgentControl()->Restart();
     bot.AgentControl()->WaitForRestart();
 
@@ -279,41 +260,60 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     std::cout << "    Testing multi-threaded non real-time singleplayer restart" << std::endl;
     bot.count_restarts_ = 0;
     coordinator.SetMultithreaded(true);
-    //coordinator.SetRealtime(false);
 
     // Step forward the game simulation.
     while (!bot.IsFinished()) {
         coordinator.Update();
     }
-    /* ----------------------------------------------------------- */
-
-#if 0
-    /* Test multi-threaded real-time single player restart */
-    std::cout << "    Testing multi-threaded real-time singleplayer restart" << std::endl;
-    bot.count_restarts_ = 0;
-    coordinator.SetMultithreaded(true);
-    coordinator.SetRealtime(true);
-
-    // Step forward the game simulation.
-    while (!bot.IsFinished()) {
-        coordinator.Update();
-    }
-
-    coordinator.LeaveGame();
-    coordinator.WaitForAllResponses();
-    coordinator.CreateGame(sc2::kMapEmpty);
-    coordinator.JoinGame();
-#endif
     /* ----------------------------------------------------------- */
 
     coordinator.TerminateStarcraft();
 
     /* ----------------------------------------------------------- */
-    // Multi-player Restart
+    // Single-player Real-Time Restart Tests
+    /* ----------------------------------------------------------- */
+    coordinator.SetRealtime(true);
+    coordinator.SetParticipants({
+        CreateParticipant(sc2::Race::Terran, &bot),
+    });
+
+    coordinator.LaunchStarcraft();
+    coordinator.StartGame(sc2::kMapEmpty);
+
+    /* Test non multi-threaded real-time single player restart */
+    std::cout << "    Testing non multi-threaded real-time singleplayer restart" << std::endl;
+    bot.count_restarts_ = 0;
+    coordinator.SetMultithreaded(false);
+
+    // Step forward the game simulation.
+    while (!bot.IsFinished()) {
+        coordinator.Update();
+    }
+    /* ----------------------------------------------------------- */
+
+    bot.AgentControl()->Restart();
+    bot.AgentControl()->WaitForRestart();
+
+    /* Test multi-threaded real-time single player restart */
+    std::cout << "    Testing multi-threaded real-time singleplayer restart" << std::endl;
+    bot.count_restarts_ = 0;
+    coordinator.SetMultithreaded(true);
+
+    // Step forward the game simulation.
+    while (!bot.IsFinished()) {
+        coordinator.Update();
+    }
+    /* ----------------------------------------------------------- */
+
+    coordinator.TerminateStarcraft();
+
+    /* ----------------------------------------------------------- */
+    // Multi-player Non-Real-Time Restart Tests
     /* ----------------------------------------------------------- */
     sc2::MarineMicroBot microBot;
     sc2::Agent nothingBot;
 
+    coordinator.SetRealtime(false);
     coordinator.SetParticipants({
         CreateParticipant(sc2::Race::Terran, &microBot),
         CreateParticipant(sc2::Race::Zerg, &nothingBot)
@@ -326,7 +326,6 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     /* Test non multi-threaded non real-time multiplayer restart */
     std::cout << "    Test non multi-threaded non real-time multiplayer restart" << std::endl;
     coordinator.SetMultithreaded(false);
-    //coordinator.SetRealtime(false);
 
     // Step forward the game simulation.
     while (coordinator.Update()) {
@@ -341,29 +340,10 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     coordinator.JoinGame();
     /* ----------------------------------------------------------- */
 
-#if 0
-    /* Test non multi-threaded real-time multiplayer restart */
-    std::cout << "    Test non multi-threaded real-time multiplayer restart" << std::endl;
-    coordinator.SetMultithreaded(false);
-    //coordinator.SetRealtime(true);
-
-    // Step forward the game simulation.
-    while (!bot.IsFinished()) {
-        coordinator.Update();
-    }
-
-    coordinator.LeaveGame();
-    coordinator.WaitForAllResponses();
-    coordinator.CreateGame(sc2::kMapEmpty);
-    coordinator.JoinGame();
-    /* ----------------------------------------------------------- */
-#endif
-
     /* Test multi-threaded non real-time multiplayer restart */
     std::cout << "    Test multi-threaded non real-time multiplayer restart" << std::endl;
     microBot.GetNumMultiplayerRestarts() = 0;
     coordinator.SetMultithreaded(true);
-    //coordinator.SetRealtime(false);
 
     // Step forward the game simulation.
     while (coordinator.Update()) {
@@ -373,21 +353,51 @@ bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
     }
     /* ----------------------------------------------------------- */
 
-#if 0
-    /* Test multi-threaded real-time multiplayer restart */
-    std::cout << "    Test multi-threaded real-time multiplayer restart" << std::endl;
-    coordinator.SetMultithreaded(true);
-    //coordinator.SetRealtime(true);
+    coordinator.TerminateStarcraft();
+
+    /* ----------------------------------------------------------- */
+    // Multi-player Real-Time Restart Tests
+    /* ----------------------------------------------------------- */
+    coordinator.SetRealtime(true);
+    coordinator.SetParticipants({
+        CreateParticipant(sc2::Race::Terran, &microBot),
+        CreateParticipant(sc2::Race::Zerg, &nothingBot)
+    });
+    coordinator.RegisterForRestartGame(true);
+
+    coordinator.LaunchStarcraft();
+    coordinator.StartGame(sc2::kMapFastRestartMultiplayer);
+
+    /* Test non multi-threaded real-time multiplayer restart */
+    std::cout << "    Test non multi-threaded real-time multiplayer restart" << std::endl;
+    microBot.GetNumMultiplayerRestarts() = 0;
+    coordinator.SetMultithreaded(false);
 
     // Step forward the game simulation.
-    while (!bot.IsFinished()) {
-        coordinator.Update();
+    while (coordinator.Update()) {
+        if (microBot.GetNumMultiplayerRestarts() >= NumRestartsToTest) {
+            break;
+        }
     }
 
+#if 0
     coordinator.LeaveGame();
     coordinator.WaitForAllResponses();
-    coordinator.CreateGame(sc2::kMapEmpty);
+    coordinator.CreateGame(sc2::kMapFastRestartMultiplayer);
     coordinator.JoinGame();
+    /* ----------------------------------------------------------- */
+
+    /* Test multi-threaded real-time multiplayer restart */
+    std::cout << "    Test multi-threaded real-time multiplayer restart" << std::endl;
+    microBot.GetNumMultiplayerRestarts() = 0;
+    coordinator.SetMultithreaded(true);
+
+    // Step forward the game simulation.
+    while (coordinator.Update()) {
+        if (microBot.GetNumMultiplayerRestarts() >= NumRestartsToTest) {
+            break;
+        }
+    }
     /* ----------------------------------------------------------- */
 #endif
 
