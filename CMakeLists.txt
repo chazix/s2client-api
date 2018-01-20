@@ -36,7 +36,7 @@ if (MSVC)
     if("${MSVC_RUNTIME}" STREQUAL "")
         set(MSVC_RUNTIME "static")
     endif()
-    
+
     # Set compiler options.
     set(variables
         CMAKE_C_FLAGS_DEBUG
@@ -47,7 +47,7 @@ if (MSVC)
         CMAKE_CXX_FLAGS_MINSIZEREL
         CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_RELWITHDEBINFO
-    )    
+    )
     if(${MSVC_RUNTIME} STREQUAL "static")
         message(STATUS
           "MSVC -> forcing use of statically-linked runtime."
