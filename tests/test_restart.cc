@@ -225,7 +225,7 @@ bool MarineMicroBot::GetNearestZergling(const Point2D& from) {
 // TestMovementCombat
 //
 
-bool TestRequestRestartGameNonRealTime(int argc, char** argv) {
+bool TestRequestRestartGame(int argc, char** argv) {
     Coordinator coordinator;
     if (!coordinator.LoadSettings(argc, argv)) {
         return false;

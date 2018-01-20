@@ -7,6 +7,6 @@
 
 namespace sc2 {
 
-bool TestRequestRestartGameNonRealTime(int argc, char** argv);
+bool TestRequestRestartGame(int argc, char** argv);
 
 }

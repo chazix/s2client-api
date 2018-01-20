@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     bool success = true;
 
     // Add tests here.
-    TEST(sc2::TestRequestRestartGameNonRealTime);
+    TEST(sc2::TestRequestRestartGame);
     TEST(sc2::TestAbilityRemap);
     TEST(sc2::TestSnapshots);
     TEST(sc2::TestMultiplayer);
