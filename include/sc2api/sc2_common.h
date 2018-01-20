@@ -11,7 +11,7 @@
 #include <mutex>
 #include <sstream>
 
-#define SC2API_MESSAGE_LOGGING _DEBUG
+#define SC2API_MESSAGE_LOGGING DEBUG
 
 namespace sc2 {
 
@@ -215,7 +215,15 @@ std::string GetCurrentTimeStamp (bool include_date = false);
 
 class Log {
 public:
-    Log(const std::string& name, int open_mode);
+    enum Mode {
+        read         = std::fstream::in,
+        write        = std::fstream::out,
+        append       = std::fstream::app,
+        write_append = write | append
+    };
+
+public:
+    Log(const std::string& name, Log::Mode open_mode);
     ~Log();
 
     template <typename T>

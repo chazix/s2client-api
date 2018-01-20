@@ -36,7 +36,7 @@ if (MSVC)
     if("${MSVC_RUNTIME}" STREQUAL "")
         set(MSVC_RUNTIME "static")
     endif()
-
+    
     # Set compiler options.
     set(variables
         CMAKE_C_FLAGS_DEBUG
@@ -47,7 +47,7 @@ if (MSVC)
         CMAKE_CXX_FLAGS_MINSIZEREL
         CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_RELWITHDEBINFO
-    )
+    )    
     if(${MSVC_RUNTIME} STREQUAL "static")
         message(STATUS
           "MSVC -> forcing use of statically-linked runtime."
@@ -68,6 +68,19 @@ if (MSVC)
         endforeach()
     endif()
 endif ()
+
+# Append on our debug and release defines.
+if(MSVC)
+    string(APPEND CMAKE_C_FLAGS_DEBUG " /DDEBUG")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " /DDEBUG")
+    string(APPEND CMAKE_C_FLAGS_RELEASE " /DRELEASE")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " /DRELEASE")
+else()
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -DDEBUG")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -DDEBUG")
+    string(APPEND CMAKE_C_FLAGS_RELEASE " -DRELEASE")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -DRELEASE")
+endif()
 
 # Allow creating filters for projects in visual studio.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
