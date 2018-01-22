@@ -351,18 +351,20 @@ bool AgentControlImp::WaitForRestart(bool* needMultiplayerHardReset) {
 
     const SC2APIProtocol::ResponseRestartGame& response_restart_game = response->restart_game();
     if (response_restart_game.has_error()) {
+        if (response_restart_game.error() == SC2APIProtocol::ResponseRestartGame_Error_NeedMultiplayerHardReset && 
+            needMultiplayerHardReset
+        ) {
+            *needMultiplayerHardReset = true;
+            return control_interface_->IsInGame();
+        }
+
         std::cerr << "ResponseRestartGame Error: " <<
             response_restart_game.Error_Name(response_restart_game.error()) << std::endl;
         std::cerr << response_restart_game.error_details() << std::endl;
         return false;
     }
 
-    if (needMultiplayerHardReset && response_restart_game.need_multiplayer_hard_reset()) {
-        *needMultiplayerHardReset = true;
-    }
-    else {
-        agent_->OnGameStart();
-    }
+    agent_->OnGameStart();
 
     return control_interface_->IsInGame();
 }
