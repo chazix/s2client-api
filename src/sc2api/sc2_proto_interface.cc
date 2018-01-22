@@ -89,7 +89,9 @@ GameRequestPtr ProtoInterface::MakeRequest() {
 }
 
 #if SC2API_MESSAGE_LOGGING
-static sc2::Log loggingRequestOutput(GetCurrentTimeStamp(true) + "_requestlog.txt", std::fstream::out | std::fstream::app);
+static sc2::Log loggingRequestOutput(
+    GetCurrentTimeStamp(true) + "_requestlog.txt",
+    sc2::Log::Mode::write_append);
 #endif
 
 bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_requests) {

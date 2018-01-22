@@ -220,7 +220,7 @@ std::string GetCurrentTimeStamp (bool include_date) {
     return timeStamp;
 }
 
-Log::Log(const std::string& name, int open_mode) {
+Log::Log(const std::string& name, Log::Mode open_mode) {
     m_activeLogging = true;
     m_logThread = std::thread(&Log::LogWatcher, this);
     // TODO => Save in user's documents

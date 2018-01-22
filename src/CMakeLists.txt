@@ -63,12 +63,14 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 
 if (MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "/MTd /ZI /Od" CACHE STRING "" FORCE)
-    set(CMAKE_CXX_FLAGS_RELEASE "/MT" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "/MTd /ZI /Od /DDEBUG" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "/MT /DRELEASE" CACHE STRING "" FORCE)
 
     set_target_properties(civetweb-c-library PROPERTIES COMPILE_FLAGS "/MT")
 else()
-    set(CMAKE_CXX_FLAGS "-fpermissive")  
+    set(CMAKE_CXX_FLAGS "-fpermissive")
+    set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-DRELEASE")
 endif()
 
 add_dependencies(sc2protocol protoc)

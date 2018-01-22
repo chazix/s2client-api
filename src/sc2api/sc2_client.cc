@@ -1380,7 +1380,7 @@ public:
     std::mutex error_mutex_;
 
 #if SC2API_MESSAGE_LOGGING
-    sc2::Log responseMessageLog;
+    std::unique_ptr<sc2::Log> response_message_log_;
 #endif
 
     ProtoInterface& Proto() override;
@@ -1452,11 +1452,14 @@ ControlImp::ControlImp(Client& client) :
     is_multiplayer_(false),
     observation_imp_(nullptr),
     query_imp_(nullptr),
-    debug_imp_(nullptr),
+    debug_imp_(nullptr) {
+
 #if SC2API_MESSAGE_LOGGING
-    responseMessageLog(GetCurrentTimeStamp(true) + "_responselog.txt", std::fstream::out | std::fstream::app)
-#endif 
-{
+    response_message_log_ = std::make_unique<sc2::Log>(
+        GetCurrentTimeStamp(true) + "_responselog.txt",
+        sc2::Log::Mode::write_append);
+#endif
+
     proto_.SetControl(this);
     observation_imp_ = std::make_unique<ObservationImp>(proto_, observation_, response_, *this);
     query_imp_ = std::make_unique<QueryImp>(proto_, *this, *observation_imp_);
@@ -1812,10 +1815,10 @@ GameResponsePtr ControlImp::WaitForResponse() {
 
 #if SC2API_MESSAGE_LOGGING
     if (response.get()) {
-        responseMessageLog << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(response->response_case()) << "\n";
-        responseMessageLog << "    status: " << Status_Name(response->status()) << "\n";
-        responseMessageLog << "    ByteSize: " << response->ByteSize() << "\n";
-        responseMessageLog << "--------------------" << "\n";
+        *response_message_log_ << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(response->response_case()) << "\n";
+        *response_message_log_ << "    status: " << Status_Name(response->status()) << "\n";
+        *response_message_log_ << "    ByteSize: " << response->ByteSize() << "\n";
+        *response_message_log_ << "--------------------" << "\n";
     }
 #endif
 

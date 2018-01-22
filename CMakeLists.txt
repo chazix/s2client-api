@@ -69,6 +69,19 @@ if (MSVC)
     endif()
 endif ()
 
+# Append on our debug and release defines.
+if(MSVC)
+    string(APPEND CMAKE_C_FLAGS_DEBUG " /DDEBUG")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " /DDEBUG")
+    string(APPEND CMAKE_C_FLAGS_RELEASE " /DRELEASE")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " /DRELEASE")
+else()
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -DDEBUG")
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -DDEBUG")
+    string(APPEND CMAKE_C_FLAGS_RELEASE " -DRELEASE")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -DRELEASE")
+endif()
+
 # Allow creating filters for projects in visual studio.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
