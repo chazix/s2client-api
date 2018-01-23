@@ -10,6 +10,7 @@
 #include "test_performance.h"
 #include "test_observation_interface.h"
 #include "test_actions.h"
+#include "test_sendmapcommand.h"
 #include "sc2utils/sc2_manage_process.h"
 
 #include <iostream>
@@ -36,6 +37,7 @@ int main(int argc, char* argv[]) {
     bool success = true;
 
     // Add tests here.
+    TEST(sc2::TestSendMapCommand);
     TEST(sc2::TestRequestRestartGame);
     TEST(sc2::TestAbilityRemap);
     TEST(sc2::TestSnapshots);

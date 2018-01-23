@@ -81,18 +81,18 @@ bool ProtoInterface::ConnectToGame(const std::string& address, int port, int tim
         control_->Error(ClientError::ConnectionClosed);
     });
 
+#if SC2API_MESSAGE_LOGGING
+    std::string clientid = address + '_' + std::to_string(port);
+    m_clientRequestLogs[clientid] = std::make_unique<sc2::Log>(
+        "requestlog.txt", clientid, sc2::Log::Mode::write_append);
+#endif
+
     return PingGame();
 }
 
 GameRequestPtr ProtoInterface::MakeRequest() {
     return std::make_shared<SC2APIProtocol::Request>(SC2APIProtocol::Request());
 }
-
-#if SC2API_MESSAGE_LOGGING
-static sc2::Log loggingRequestOutput(
-    GetCurrentTimeStamp(true) + "_requestlog.txt",
-    sc2::Log::Mode::write_append);
-#endif
 
 bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_requests) {
     uint32_t request_type = static_cast<uint32_t>(request->request_case());
@@ -125,11 +125,13 @@ bool ProtoInterface::SendRequest(GameRequestPtr& request, bool ignore_pending_re
     }
 
 #if SC2API_MESSAGE_LOGGING
+    sc2::Log& clientReqLog = *m_clientRequestLogs[address_ + '_' + std::to_string(port_)];
     std::string messageEnumTypeName;
     request->descriptor()->FindEnumTypeByName(messageEnumTypeName);
-    loggingRequestOutput << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(request->request_case()) << "\n";
-    loggingRequestOutput << "    ByteSize: " << request->ByteSize() << "\n";
-    loggingRequestOutput << "--------------------" << "\n";
+    clientReqLog << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(request->request_case()) << "\n";
+    clientReqLog << "    ByteSize: " << request->ByteSize() << "\n";
+    clientReqLog << request->DebugString();
+    clientReqLog << "--------------------" << "\n";
 #endif
     connection_.Send(request.get());
 

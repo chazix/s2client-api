@@ -1454,12 +1454,6 @@ ControlImp::ControlImp(Client& client) :
     query_imp_(nullptr),
     debug_imp_(nullptr) {
 
-#if SC2API_MESSAGE_LOGGING
-    response_message_log_ = std::make_unique<sc2::Log>(
-        GetCurrentTimeStamp(true) + "_responselog.txt",
-        sc2::Log::Mode::write_append);
-#endif
-
     proto_.SetControl(this);
     observation_imp_ = std::make_unique<ObservationImp>(proto_, observation_, response_, *this);
     query_imp_ = std::make_unique<QueryImp>(proto_, *this, *observation_imp_);
@@ -1504,6 +1498,12 @@ bool ControlImp::Connect(const std::string& address, int port, int timeout_ms) {
     }
 
     std::cout << "Connected to " << address << ":" << port << std::endl;
+
+#if SC2API_MESSAGE_LOGGING
+    std::string clientid = address + '_' + std::to_string(port);
+    response_message_log_ = std::make_unique<sc2::Log>(
+        "responselog.txt", clientid, sc2::Log::Mode::write_append);
+#endif
 
     return true;
 }
@@ -1816,8 +1816,7 @@ GameResponsePtr ControlImp::WaitForResponse() {
 #if SC2API_MESSAGE_LOGGING
     if (response.get()) {
         *response_message_log_ << '[' << GetCurrentTimeStamp() << "] " << RequestResponseIDToName(response->response_case()) << "\n";
-        *response_message_log_ << "    status: " << Status_Name(response->status()) << "\n";
-        *response_message_log_ << "    ByteSize: " << response->ByteSize() << "\n";
+        *response_message_log_ << response->DebugString();
         *response_message_log_ << "--------------------" << "\n";
     }
 #endif

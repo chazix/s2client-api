@@ -5,10 +5,12 @@
 #include "s2clientprotocol/sc2api.pb.h"
 
 #include <functional>
+#include <unordered_map>
 
 namespace sc2 {
 
 class ControlInterface;
+class Log;
 
 const unsigned int kDefaultProtoInterfaceTimeout = 120000; // A generous 120 seconds.
 
@@ -117,6 +119,8 @@ protected:
 
     uint32_t base_build_;
     std::string data_version_;
+
+    std::unordered_map<std::string, std::unique_ptr<Log>> m_clientRequestLogs;
 };
 
 // Helper to produce a string for the proto type.

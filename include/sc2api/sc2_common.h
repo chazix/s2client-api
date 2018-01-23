@@ -11,7 +11,7 @@
 #include <mutex>
 #include <sstream>
 
-#define SC2API_MESSAGE_LOGGING DEBUG
+#define SC2API_MESSAGE_LOGGING 0
 
 namespace sc2 {
 
@@ -223,7 +223,7 @@ public:
     };
 
 public:
-    Log(const std::string& name, Log::Mode open_mode);
+    Log(const std::string& name, const std::string& logid, Log::Mode open_mode);
     ~Log();
 
     template <typename T>
@@ -235,6 +235,8 @@ public:
         return *this;
     }
 
+    const std::string& GetLogId();
+
 private:
     void LogDataHelper();
 
@@ -244,6 +246,7 @@ private:
 
 private:
     bool m_activeLogging;
+    std::string m_logId;
     std::mutex m_logMutex;
     std::thread m_logThread;
     std::ofstream m_file;
