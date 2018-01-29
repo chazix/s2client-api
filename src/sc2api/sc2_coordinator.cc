@@ -179,7 +179,7 @@ public:
 CoordinatorImp::CoordinatorImp() :
     agents_(),
     replay_observers_(),
-    game_ended_(),
+    game_ended_(false),
     starcraft_started_(false),
     game_settings_(),
     process_settings_(false, 1, "", "127.0.0.1", kDefaultProtoInterfaceTimeout, 8168, false) {
@@ -229,6 +229,7 @@ bool CoordinatorImp::ShouldRelaunch(ReplayObserver* r) {
 }
 
 void CoordinatorImp::StartReplay() {
+    game_ended_ = false;
     // If no replays given in the settings don't try.
     if (replay_settings_.replay_file.empty()) {
         return;
@@ -275,6 +276,7 @@ void CoordinatorImp::StartReplay() {
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
+        imp->game_ended_ = true;
         a->OnGameEnd();
 
         // RestartGame was called manually
@@ -297,6 +299,11 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
         return;
     }
     
+    // Game ended during the last step
+    if (imp->game_ended_) {
+        imp->game_ended_ = false;
+    }
+
     // RestartGame was requested during the last step
     if (a->AgentControl()->HasRestartGameOccurred()) {
         a->AgentControl()->SetRestartGameOccurred(false);
@@ -353,6 +360,11 @@ void CoordinatorImp::StepAgents() {
 
             // It is possible to have a pending leave game request here.
             if (a->Control()->PollLeaveGame()) {
+                if (!game_ended_ && a->Control()->GetLastStatus() == SC2APIProtocol::Status::ended) {
+                    game_ended_ = true;
+                    a->OnGameEnd();
+                }
+
                 continue;
             }
 
@@ -392,6 +404,7 @@ void CoordinatorImp::StepAgentsRealtime() {
         action->SendActions();
 
         if (!control->IsInGame()) {
+            game_ended_ = true;
             a->OnGameEnd();
 
             // RestartGame was called manually
@@ -412,6 +425,11 @@ void CoordinatorImp::StepAgentsRealtime() {
                 }
             }
             return;
+        }
+
+        // Game ended during the last step
+        if (game_ended_) {
+            game_ended_ = false;
         }
 
         // RestartGame was requested during the last step
@@ -457,6 +475,7 @@ void CoordinatorImp::StepReplayObservers() {
             }
 
             if (!r->Control()->IsInGame()) {
+                game_ended_ = true;
                 r->OnGameEnd();
             }
         }
@@ -518,6 +537,7 @@ void CoordinatorImp::StepReplayObserversRealtime() {
             }
 
             if (!r->Control()->IsInGame()) {
+                game_ended_ = true;
                 r->OnGameEnd();
             }
         }
@@ -608,11 +628,13 @@ bool CoordinatorImp::WaitForAllResponses() {
 
 bool CoordinatorImp::CreateGame() {
     // Create the game with the first client.
+    game_ended_ = false;
     Agent* firstClient = agents_.front();
     return firstClient->Control()->CreateGame(game_settings_.map_name, game_settings_.player_setup, process_settings_.realtime);
 }
 
 bool CoordinatorImp::JoinGame() {
+    game_ended_ = false;
     int i = 0;
     for (auto c : agents_) {
         bool game_join_request = c->Control()->RequestJoinGame(game_settings_.player_setup[i++],
@@ -665,6 +687,7 @@ bool CoordinatorImp::JoinGame() {
 }
 
 bool CoordinatorImp::JoinGame(Agent* const agent) {
+    game_ended_ = false;
     if (agent == nullptr) {
         return false;
     }
@@ -719,6 +742,7 @@ bool CoordinatorImp::JoinGame(Agent* const agent) {
 
 bool CoordinatorImp::StartGame() {
     assert(starcraft_started_);
+    game_ended_ = false;
     bool is_game_created = CreateGame();
     if (!is_game_created) {
         std::cerr << "Failed to create game." << std::endl;
@@ -728,6 +752,7 @@ bool CoordinatorImp::StartGame() {
 }
 
 bool CoordinatorImp::Relaunch(ReplayObserver* replay_observer) {
+    game_ended_ = false;
     ControlInterface* control = replay_observer->Control();
     const ProcessInfo& pi = control->GetProcessInfo();
 
@@ -976,12 +1001,21 @@ bool Coordinator::Update() {
     return !AllGamesEnded() || relaunched;
 }
 
-bool Coordinator::SendMapCommand(const std::string& commandId) {
+bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase choice, const std::string& commandId) {
     for (auto a : imp_->agents_) {
         ControlInterface* control = a->Control();
         GameRequestPtr request = control->Proto().MakeRequest();
         SC2APIProtocol::RequestMapCommand* mapCommand = request->mutable_map_command();
-        mapCommand->set_trigger_cmd(commandId.c_str());
+
+        switch (choice) {
+            case SC2APIProtocol::RequestMapCommand::kCustom:
+                mapCommand->set_trigger_cmd(commandId.c_str());
+            break;
+
+            case SC2APIProtocol::RequestMapCommand::kRestartGame:
+                mapCommand->mutable_restart_game();
+            break;
+        }
 
         if (!control->Proto().SendRequest(request)) {
             return false;
@@ -999,8 +1033,14 @@ bool Coordinator::SendMapCommand(const std::string& commandId) {
             assert(0);
             return false;
         }
+
         const SC2APIProtocol::ResponseMapCommand& response_map_command = response->map_command();
         if (response_map_command.has_error()) {
+            if (response_map_command.error() == SC2APIProtocol::ResponseMapCommand_Error_NeedRestartRequest) {
+                imp_->RestartGame(a);
+                return true;
+            }
+
             std::cerr << "ResponseMapCommand Error: " << response_map_command.Error_Name(response_map_command.error()) << std::endl;
             std::cerr << "Invalid MapCommand: " << response_map_command.error_details() << std::endl;
             return false;
@@ -1036,11 +1076,8 @@ bool CoordinatorImp::IsRegisteredForRestartGame() {
 }
 
 void CoordinatorImp::RestartGame() {
+    game_ended_ = false;
     for (auto a : agents_) {
-        // OnGameEnd doesn't get called in non-realtime mode due to early out on line 358
-        if (!process_settings_.realtime) {
-            a->OnGameEnd();
-        }
         a->AgentControl()->Restart();
     }
 
@@ -1061,6 +1098,7 @@ void CoordinatorImp::RestartGame() {
 }
 
 void CoordinatorImp::RestartGame(Agent* const agent) {
+    game_ended_ = false;
     bool needMultiplayerHardReset = false;
     agent->AgentControl()->Restart();
     agent->AgentControl()->WaitForRestart(&needMultiplayerHardReset);

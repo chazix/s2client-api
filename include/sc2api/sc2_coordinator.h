@@ -163,7 +163,9 @@ public:
 
     //! Send a trigger map command to the current agents to execute
     //! \return True if the map command request was sent to the agents successfully
-    bool SendMapCommand(const std::string& commandId);
+    // \param commandChoice The command choice to use when sending the map request to the agents
+    // \param commandId The command id for the agents to execute when the commandChoice is custom
+    bool SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase commandChoice, const std::string& commandId = std::string());
 
     //! Requests for the currently running game to end.
     void LeaveGame();
