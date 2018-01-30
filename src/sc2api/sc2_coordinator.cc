@@ -283,28 +283,31 @@ static std::mutex happened_mutex;
 static bool occured = false;
 static int counter = 0;
 
+static void CoordinatorGameEndHelper(CoordinatorImp* imp, Agent* a) {
+    if (imp->process_settings_.multi_threaded) {
+        std::lock_guard<std::mutex> lk(happened_mutex);
+        if (!occured) {
+            // TODO => This needs to happen only once when multithreading!
+            imp->OnGameEnd(a->GetAgentCoordinator());
+            occured = true;
+        }
+        if (++counter == imp->agents_.size()) {
+            counter = 0;
+            occured = false;
+        }
+    }
+    else {
+        if (!imp->game_ended_) {
+            imp->OnGameEnd(a->GetAgentCoordinator());
+            imp->game_ended_ = true;
+        }
+    }
+}
+
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
-        if (imp->process_settings_.multi_threaded) {
-            std::lock_guard<std::mutex> lk(happened_mutex);
-            if (!occured) {
-                // TODO => This needs to happen only once when multithreading!
-                imp->OnGameEnd(a->GetAgentCoordinator());
-                occured = true;
-            }
-            if (++counter == imp->agents_.size()) {
-                counter = 0;
-                occured = false;
-            }
-        }
-        else {
-            if (!imp->game_ended_) {
-                imp->OnGameEnd(a->GetAgentCoordinator());
-                imp->game_ended_ = true;
-            }
-        }
-
+        CoordinatorGameEndHelper(imp, a);
         a->OnGameEnd();
 
         // RestartGame was called manually
@@ -390,7 +393,7 @@ void CoordinatorImp::StepAgents() {
 
             // It is possible to have a pending leave game request here.
             if (a->Control()->PollLeaveGame()) {
-                if (!process_settings_.realtime && !game_ended_ && !a->Control()->IsInGame()) {
+                if (!a->Control()->IsInGame() && !game_ended_ && !process_settings_.realtime) {
                     OnGameEnd(a->GetAgentCoordinator());
                     // need to call all agents OnGameEnd
                     for (auto agent : agents_) {
