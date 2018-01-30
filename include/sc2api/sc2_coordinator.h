@@ -130,6 +130,8 @@ public:
     //! \param register_state Boolean for whether we are registered to restart game
     void RegisterForRestartGame(bool register_state);
 
+    void RegisterOnGameEndCallback(std::function<void(Coordinator*)> on_game_end);
+
     //! Creates a game but does not join the agents to the game
     //! \param map_path Path to the map to run.
     //! Returns true if the game was successfully created

@@ -126,6 +126,7 @@ public:
     bool game_ended_;
     bool starcraft_started_;
     bool registered_for_restart_{false};
+    bool pump_restart_request_{false};
 
     GameSettings game_settings_;
     ReplaySettings replay_settings_;
@@ -157,9 +158,12 @@ public:
     bool IsRegisteredForRestartGame();
     //! Sends the RestartGame request to all currently connected Agents
     void RestartGame();
-    //! Send the RestartGame request to the particular agent, this is utilized during multi-threading
+    //! Send the RestartGame request to the particular agent, utilized during multi-threading or realtime mode
     //! \param agent Pointer to the agent to send the RestartGame request to
     void RestartGame(Agent* const agent);
+
+    //! Executes custom OnGameEnd behavior to occur before agent specific OnGameEnd behavior is executed 
+    void OnGameEnd(Coordinator*);
 
     bool Relaunch(ReplayObserver* replay_observer);
 
@@ -174,6 +178,8 @@ public:
     int last_port_ = 0;
 
     bool use_generalized_ability_id = true;
+
+    std::function<void(Coordinator*)> on_game_end_{nullptr};
 };
 
 CoordinatorImp::CoordinatorImp() :
@@ -273,10 +279,32 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
+static std::mutex happened_mutex;
+static bool occured = false;
+static int counter = 0;
+
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
-        imp->game_ended_ = true;
+        if (imp->process_settings_.multi_threaded) {
+            std::lock_guard<std::mutex> lk(happened_mutex);
+            if (!occured) {
+                // TODO => This needs to happen only once when multithreading!
+                imp->OnGameEnd(a->GetAgentCoordinator());
+                occured = true;
+            }
+            if (++counter == imp->agents_.size()) {
+                counter = 0;
+                occured = false;
+            }
+        }
+        else {
+            if (!imp->game_ended_) {
+                imp->OnGameEnd(a->GetAgentCoordinator());
+                imp->game_ended_ = true;
+            }
+        }
+
         a->OnGameEnd();
 
         // RestartGame was called manually
@@ -290,6 +318,7 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
         }
 
         // these need to be executed here due to the agent parallelism when multi_threaded
+        // NOTE => Restart needs to happen here for e_gameStateEnd
         if (imp->process_settings_.multi_threaded) {
             if (!a->AgentControl()->HasRestartGameOccurred()) {
                 imp->RestartGame(a);
@@ -298,7 +327,7 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
         }
         return;
     }
-    
+
     // Game ended during the last step
     if (imp->game_ended_) {
         imp->game_ended_ = false;
@@ -307,6 +336,7 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     // RestartGame was requested during the last step
     if (a->AgentControl()->HasRestartGameOccurred()) {
         a->AgentControl()->SetRestartGameOccurred(false);
+        imp->pump_restart_request_ = false;
     }
 
     ActionInterface* action = a->Actions();
@@ -360,11 +390,14 @@ void CoordinatorImp::StepAgents() {
 
             // It is possible to have a pending leave game request here.
             if (a->Control()->PollLeaveGame()) {
-                if (!game_ended_ && a->Control()->GetLastStatus() == SC2APIProtocol::Status::ended) {
+                if (!process_settings_.realtime && !game_ended_ && !a->Control()->IsInGame()) {
+                    OnGameEnd(a->GetAgentCoordinator());
+                    // need to call all agents OnGameEnd
+                    for (auto agent : agents_) {
+                        agent->OnGameEnd();
+                    }
                     game_ended_ = true;
-                    a->OnGameEnd();
                 }
-
                 continue;
             }
 
@@ -404,7 +437,11 @@ void CoordinatorImp::StepAgentsRealtime() {
         action->SendActions();
 
         if (!control->IsInGame()) {
-            game_ended_ = true;
+            if (!game_ended_) {
+                OnGameEnd(a->GetAgentCoordinator());
+                game_ended_ = true;
+            }
+            
             a->OnGameEnd();
 
             // RestartGame was called manually
@@ -412,7 +449,7 @@ void CoordinatorImp::StepAgentsRealtime() {
                 return;
             }
 
-            if (!registered_for_restart_) {
+            if (!registered_for_restart_ && !pump_restart_request_) {
                 a->Control()->RequestLeaveGame();
                 return;
             }
@@ -435,6 +472,7 @@ void CoordinatorImp::StepAgentsRealtime() {
         // RestartGame was requested during the last step
         if (a->AgentControl()->HasRestartGameOccurred()) {
             a->AgentControl()->SetRestartGameOccurred(false);
+            pump_restart_request_ = false;
         }
     };
 
@@ -807,11 +845,15 @@ bool Coordinator::CreateGame(const std::string& map_path) {
 }
 
 void Coordinator::RestartGame() {
-    imp_->RestartGame();
+    imp_->pump_restart_request_ = true;
 }
 
 void Coordinator::RegisterForRestartGame(bool register_state) {
     imp_->registered_for_restart_ = register_state;
+}
+
+void Coordinator::RegisterOnGameEndCallback(std::function<void(Coordinator*)> on_game_end) {
+    imp_->on_game_end_ = on_game_end;
 }
 
 bool Coordinator::RemoteSaveMap(const void* data, int data_size, std::string remote_path) {
@@ -934,9 +976,11 @@ bool Coordinator::Update() {
     }
 
     // check agents for needing to RestartGame
+    // NOTE => commenting out multi_threaded check here allows restart to work during e_gameStateInGame
+    // TODO => Need to allow this to run for multithreaded for e_gameStateInGame restarts
     if (!imp_->process_settings_.multi_threaded && imp_->IsRegisteredForRestartGame()) {
         for (auto agent : imp_->agents_) {
-            if (agent->Control()->IsInGame()) {
+            if (agent->Control()->IsInGame() && !imp_->pump_restart_request_) {
                 continue;
             }
 
@@ -947,7 +991,7 @@ bool Coordinator::Update() {
             }
 
             if (!agentControl->HasRestartGameOccurred()) {
-                if (!imp_->process_settings_.realtime) {
+                if (!imp_->process_settings_.realtime && !imp_->process_settings_.multi_threaded) {
                     // need to send RequestRestartGame simultaneous to the clients in non-realtime mode
                     imp_->RestartGame();
                     break;
@@ -1002,6 +1046,9 @@ bool Coordinator::Update() {
 }
 
 bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase choice, const std::string& commandId) {
+    // first wait for any pending responses
+    //WaitForAllResponses();
+
     for (auto a : imp_->agents_) {
         ControlInterface* control = a->Control();
         GameRequestPtr request = control->Proto().MakeRequest();
@@ -1037,8 +1084,8 @@ bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoic
         const SC2APIProtocol::ResponseMapCommand& response_map_command = response->map_command();
         if (response_map_command.has_error()) {
             if (response_map_command.error() == SC2APIProtocol::ResponseMapCommand_Error_NeedRestartRequest) {
-                imp_->RestartGame(a);
-                return true;
+                RestartGame();
+                continue;
             }
 
             std::cerr << "ResponseMapCommand Error: " << response_map_command.Error_Name(response_map_command.error()) << std::endl;
@@ -1072,7 +1119,7 @@ void CoordinatorImp::AddAgent(Agent* agent) {
 }
 
 bool CoordinatorImp::IsRegisteredForRestartGame() {
-    return registered_for_restart_;
+    return registered_for_restart_ || pump_restart_request_;
 }
 
 void CoordinatorImp::RestartGame() {
@@ -1127,6 +1174,16 @@ void CoordinatorImp::RestartGame(Agent* const agent) {
             CreateGame();
             JoinGame();
         }
+    }
+}
+
+void CoordinatorImp::OnGameEnd(Coordinator* coordinator) {
+    if (coordinator == nullptr) {
+        return;
+    }
+
+    if (on_game_end_ != nullptr) {
+        on_game_end_(coordinator);
     }
 }
 

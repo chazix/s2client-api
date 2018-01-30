@@ -17,11 +17,13 @@ class AgentControlImp;
 class ActionInterface;
 class ActionFeatureLayerInterface;
 class AgentControlInterface;
+class Coordinator;
 
 //! The base class for user defined bots.
 class Agent : public Client {
 public:
     Agent();
+    Agent(Coordinator* coordinator);
     ~Agent() override;
 
     //! Interface for issuing actions to units. Actions should be batched via the UnitCommand functions
@@ -38,6 +40,9 @@ public:
     //! For internal use.
     //!< \return The agent control interface.
     AgentControlInterface* AgentControl();
+
+    //! The Coordinator that manages this Agent
+    Coordinator* GetAgentCoordinator();
 
 private:
     AgentControlImp* agent_control_imp_;

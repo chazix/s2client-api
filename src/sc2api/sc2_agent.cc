@@ -7,6 +7,8 @@
 
 namespace sc2 {
 
+class Coordinator;
+
 //-------------------------------------------------------------------------------------------------
 // ActionImp: an implementation of an ActionInterface.
 //-------------------------------------------------------------------------------------------------
@@ -307,18 +309,20 @@ public:
     std::unique_ptr<ActionImp> actions_;
     std::unique_ptr<ActionFeatureLayerImp> actions_feature_layer_;
     Agent* agent_;
+    Coordinator* coordinator_;
 
-    AgentControlImp(Agent* agent, ControlInterface* control_interface);
+    AgentControlImp(Agent* agent, ControlInterface* control_interface, Coordinator* coordinator = nullptr);
     ~AgentControlImp() = default;
 
     bool Restart() override;
     bool WaitForRestart(bool* outNeedsMultiplayerHardReset = nullptr) override;
 };
 
-AgentControlImp::AgentControlImp(Agent* agent, ControlInterface* control_interface) :
+AgentControlImp::AgentControlImp(Agent* agent, ControlInterface* control_interface, Coordinator* coordinator) :
     control_interface_(control_interface),
     actions_(nullptr),
-    agent_(agent) {
+    agent_(agent),
+    coordinator_(coordinator) {
     actions_ = std::make_unique<ActionImp>(control_interface_->Proto(), *control_interface);
     actions_feature_layer_ = std::make_unique<ActionFeatureLayerImp>(control_interface_->Proto(), *control_interface);
 }
@@ -378,6 +382,11 @@ Agent::Agent() :
     agent_control_imp_ = new AgentControlImp(this, Control());
 }
 
+Agent::Agent(Coordinator* coordinator) :
+    agent_control_imp_(nullptr) {
+    agent_control_imp_ = new AgentControlImp(this, Control(), coordinator);
+}
+
 Agent::~Agent() {
     delete agent_control_imp_;
 }
@@ -392,6 +401,10 @@ ActionFeatureLayerInterface* Agent::ActionsFeatureLayer() {
 
 AgentControlInterface* Agent::AgentControl() {
     return agent_control_imp_;
+}
+
+Coordinator* Agent::GetAgentCoordinator() {
+    return agent_control_imp_->coordinator_;
 }
 
 }
