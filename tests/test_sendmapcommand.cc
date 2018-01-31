@@ -27,12 +27,17 @@ namespace sc2 {
                 const CommandInfo& cmdinfo = m_commands[m_commandIndex];
                 //const google::protobuf::Descriptor* mapCmdDiscriptor = SC2APIProtocol::RequestMapCommand::default_instance().GetDescriptor();
                 //const std::string& commandChoiceName = mapCmdDiscriptor->oneof_decl(cmdinfo.m_choice)->field()->name();
-                std::cout << "Sending MapCommand: (choice: " << "---" << "), (cmdid: " << cmdinfo.m_cmdid << ")" << std::endl;
+                //std::cout << "Sending MapCommand: (choice: " << "---" << "), (cmdid: " << cmdinfo.m_cmdid << ")" << std::endl;
                 //m_coordinator.SendMapCommand(cmdinfo.m_choice, cmdinfo.m_cmdid);
                 m_commandIndex = (m_commandIndex + 1) % m_commands.size();
                 m_numSteps = 0;
             }
         }
+
+        /*virtual void OnGameEnd() {
+            std::cout << "Sending MapCommand: (choice: " << "---" << "), (cmdid: n/a)" << std::endl;
+            m_coordinator.SendMapCommand(SC2APIProtocol::RequestMapCommand::kRestartGame);
+        }*/
 
     private:
         unsigned m_numSteps{0};
@@ -55,7 +60,7 @@ namespace sc2 {
         }
 
         coordinator.RegisterOnGameEndCallback(CoordinatorOnGameEnd);
-
+        coordinator.SetRealtime(true);
         coordinator.SetMultithreaded(true);
         //coordinator.SetRealtime(true);
         SendCommandBot mapCommandBot(coordinator);

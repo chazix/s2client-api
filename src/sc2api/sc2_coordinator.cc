@@ -279,35 +279,59 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
-static std::mutex happened_mutex;
-static bool occured = false;
+static std::mutex wait_mutex;
 static int counter = 0;
 
-static void CoordinatorGameEndHelper(CoordinatorImp* imp, Agent* a) {
+static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
     if (imp->process_settings_.multi_threaded) {
-        std::lock_guard<std::mutex> lk(happened_mutex);
-        if (!occured) {
-            // TODO => This needs to happen only once when multithreading!
-            imp->OnGameEnd(a->GetAgentCoordinator());
-            occured = true;
+        if (!imp->process_settings_.realtime) {
+            wait_mutex.lock();
+            if (++counter == imp->agents_.size()) {
+                counter = 0;
+            }
+            wait_mutex.unlock();
+            while (counter != 0) {
+                continue;
+            }
+            // wait for the threads to get here before continuing
+
+            wait_mutex.lock();
+            if (!imp->game_ended_) {
+                imp->OnGameEnd(a->GetAgentCoordinator());
+                imp->game_ended_ = true;
+            }
+
+            if (++counter == imp->agents_.size()) {
+                counter = 0;
+            }
+            wait_mutex.unlock();
+            while (counter != 0) {
+                continue;
+            }
+            return;
         }
-        if (++counter == imp->agents_.size()) {
-            counter = 0;
-            occured = false;
-        }
-    }
-    else {
+
+        // executes in multi-threaded realtime mode
+        wait_mutex.lock();
         if (!imp->game_ended_) {
             imp->OnGameEnd(a->GetAgentCoordinator());
             imp->game_ended_ = true;
         }
+        wait_mutex.unlock();
+        return;
+    }
+    
+    // executes in non-multi-threaded modes
+    if (!imp->game_ended_) {
+        imp->OnGameEnd(a->GetAgentCoordinator());
+        imp->game_ended_ = true;
     }
 }
 
 static void CallOnStep(CoordinatorImp* imp, Agent* a) {
     ControlInterface* control = a->Control();
     if (!control->IsInGame()) {
-        CoordinatorGameEndHelper(imp, a);
+        GameEndHelper(imp, a);
         a->OnGameEnd();
 
         // RestartGame was called manually
@@ -321,7 +345,6 @@ static void CallOnStep(CoordinatorImp* imp, Agent* a) {
         }
 
         // these need to be executed here due to the agent parallelism when multi_threaded
-        // NOTE => Restart needs to happen here for e_gameStateEnd
         if (imp->process_settings_.multi_threaded) {
             if (!a->AgentControl()->HasRestartGameOccurred()) {
                 imp->RestartGame(a);
@@ -440,11 +463,7 @@ void CoordinatorImp::StepAgentsRealtime() {
         action->SendActions();
 
         if (!control->IsInGame()) {
-            if (!game_ended_) {
-                OnGameEnd(a->GetAgentCoordinator());
-                game_ended_ = true;
-            }
-            
+            GameEndHelper(this, a);
             a->OnGameEnd();
 
             // RestartGame was called manually
