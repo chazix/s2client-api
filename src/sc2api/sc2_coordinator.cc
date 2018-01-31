@@ -280,17 +280,18 @@ void CoordinatorImp::StartReplay() {
 }
 
 static std::mutex wait_mutex;
-static int counter = 0;
+static int counter0 = 0;
+static int counter1 = 0;
 
 static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
     if (imp->process_settings_.multi_threaded) {
         if (!imp->process_settings_.realtime) {
             wait_mutex.lock();
-            if (++counter == imp->agents_.size()) {
-                counter = 0;
+            if (++counter0 == imp->agents_.size()) {
+                counter0 = 0;
             }
             wait_mutex.unlock();
-            while (counter != 0) {
+            while (counter0 != 0) {
                 continue;
             }
             // wait for the threads to get here before continuing
@@ -301,11 +302,11 @@ static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
                 imp->game_ended_ = true;
             }
 
-            if (++counter == imp->agents_.size()) {
-                counter = 0;
+            if (++counter1 == imp->agents_.size()) {
+                counter1 = 0;
             }
             wait_mutex.unlock();
-            while (counter != 0) {
+            while (counter1 != 0) {
                 continue;
             }
             return;
@@ -1069,7 +1070,7 @@ bool Coordinator::Update() {
 
 bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase choice, const std::string& commandId) {
     // first wait for any pending responses
-    //WaitForAllResponses();
+    WaitForAllResponses();
 
     for (auto a : imp_->agents_) {
         ControlInterface* control = a->Control();
