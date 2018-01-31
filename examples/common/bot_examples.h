@@ -8,8 +8,10 @@ namespace sc2 {
 
 class MarineMicroBot : public Agent {
 public:
+    MarineMicroBot(Coordinator* coordinator = nullptr) : Agent(coordinator) {}
+
     virtual void OnGameStart() final;
-    virtual void OnStep() final;
+    virtual void OnStep();
     virtual void OnUnitDestroyed(const Unit* unit) override;
 
 private:

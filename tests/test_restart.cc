@@ -1,6 +1,7 @@
 #include "test_movement_combat.h"
 #include "sc2api/sc2_api.h"
 #include "sc2lib/sc2_lib.h"
+#include "bot_examples.h"
 #include <iostream>
 #include <string>
 #include <random>
@@ -83,152 +84,28 @@ public:
     }
 };
 
-#if 0
-class MarineMicroBot : public Agent {
+class MarineMicroBotReset : public MarineMicroBot {
 public:
-    virtual void OnGameStart();
-    virtual void OnStep() final;
-    virtual void OnUnitDestroyed(const Unit* unit) override;
-    virtual void OnGameEnd() override;
+    MarineMicroBotReset() : MarineMicroBot() {}
 
+    virtual void OnGameEnd() override;
     int& GetNumMultiplayerRestarts() { return multiPlayerRestarts; }
 
 private:
-    bool GetPosition(UNIT_TYPEID unit_type, Unit::Alliance alliace, Point2D& position);
-    bool GetNearestZergling(const Point2D& from);
-
-    const Unit* targeted_zergling_;
-    bool move_back_;
-    Point2D backup_target_;
-    Point2D backup_start_;
     int multiPlayerRestarts{0};
 };
 
-void MarineMicroBot::OnGameStart() {
-    move_back_ = false;
-    targeted_zergling_ = 0;
-}
-
-void MarineMicroBot::OnStep() {
-    const ObservationInterface* observation = Observation();
-    ActionInterface* action = Actions();
-
-    Point2D mp, zp;
-
-    if (!GetPosition(UNIT_TYPEID::TERRAN_MARINE, Unit::Alliance::Self, mp)) {
-        return;
-    }
-
-    if (!GetPosition(UNIT_TYPEID::ZERG_ZERGLING, Unit::Alliance::Enemy, zp)) {
-        return;
-    }
-
-    if (!GetNearestZergling(mp)) {
-        return;
-    }
-
-    Units units = observation->GetUnits(Unit::Alliance::Self);
-    for (const auto& u : units) {
-        switch (static_cast<UNIT_TYPEID>(u->unit_type)) {
-        case UNIT_TYPEID::TERRAN_MARINE: {
-            if (!move_back_) {
-                action->UnitCommand(u, ABILITY_ID::ATTACK, targeted_zergling_);
-            }
-            else {
-                if (Distance2D(mp, backup_target_) < 1.5f) {
-                    move_back_ = false;
-                }
-
-                action->UnitCommand(u, ABILITY_ID::SMART, backup_target_);
-            }
-            break;
-        }
-        default: {
-            break;
-        }
-        }
-    }
-}
-
-void MarineMicroBot::OnUnitDestroyed(const Unit* unit) {
-    if (unit == targeted_zergling_) {
-        Point2D mp, zp;
-        if (!GetPosition(UNIT_TYPEID::TERRAN_MARINE, Unit::Alliance::Self, mp)) {
-            return;
-        }
-
-        if (!GetPosition(UNIT_TYPEID::ZERG_ZERGLING, Unit::Alliance::Enemy, zp)) {
-            return;
-        }
-
-        Vector2D diff = mp - zp;
-        Normalize2D(diff);
-
-        targeted_zergling_ = 0;
-        move_back_ = true;
-        backup_start_ = mp;
-        backup_target_ = mp + diff * 3.0f;
-    }
-}
-
-void MarineMicroBot::OnGameEnd() {
+void MarineMicroBotReset::OnGameEnd() {
     ++multiPlayerRestarts;
     std::cout << "Restart test: " << std::to_string(multiPlayerRestarts) << " of " <<
         std::to_string(NumRestartsToTest) << " complete." << std::endl;
 }
-
-bool MarineMicroBot::GetPosition(UNIT_TYPEID unit_type, Unit::Alliance alliace, Point2D& position) {
-    const ObservationInterface* observation = Observation();
-    Units units = observation->GetUnits(alliace);
-
-    if (units.empty()) {
-        return false;
-    }
-
-    position = Point2D(0.0f, 0.0f);
-    unsigned int count = 0;
-
-    for (const auto& u : units) {
-        if (u->unit_type == unit_type) {
-            position += u->pos;
-            ++count;
-        }
-    }
-
-    position /= (float)count;
-
-    return true;
-}
-
-bool MarineMicroBot::GetNearestZergling(const Point2D& from) {
-    const ObservationInterface* observation = Observation();
-    Units units = observation->GetUnits(Unit::Alliance::Enemy);
-
-    if (units.empty()) {
-        return false;
-    }
-
-    float distance = std::numeric_limits<float>::max();
-    for (const auto& u : units) {
-        if (u->unit_type == UNIT_TYPEID::ZERG_ZERGLING) {
-            float d = DistanceSquared2D(u->pos, from);
-            if (d < distance) {
-                distance = d;
-                targeted_zergling_ = u;
-            }
-        }
-    }
-
-    return true;
-}
-#endif
 
 //
 // TestMovementCombat
 //
 
 bool TestRequestRestartGame(int argc, char** argv) {
-#if 0
     Coordinator coordinator;
     if (!coordinator.LoadSettings(argc, argv)) {
         return false;
@@ -237,7 +114,6 @@ bool TestRequestRestartGame(int argc, char** argv) {
     // Add the custom bot, it will control the players.
     DoSomethingBot bot;
 
-#if 0
     /* ----------------------------------------------------------- */
     // Single-player Non-Real-Time Restart Tests
     /* ----------------------------------------------------------- */
@@ -310,11 +186,11 @@ bool TestRequestRestartGame(int argc, char** argv) {
     /* ----------------------------------------------------------- */
 
     coordinator.TerminateStarcraft();
-#endif
+
     /* ----------------------------------------------------------- */
     // Multi-player Non-Real-Time Restart Tests
     /* ----------------------------------------------------------- */
-    sc2::MarineMicroBot microBot;
+    sc2::MarineMicroBotReset microBot;
     sc2::Agent nothingBot;
 
     coordinator.SetRealtime(false);
@@ -327,7 +203,6 @@ bool TestRequestRestartGame(int argc, char** argv) {
     coordinator.LaunchStarcraft();
     coordinator.StartGame(sc2::kMapFastRestartMultiplayer);
 
-#if 0
     /* Test non multi-threaded non real-time multiplayer restart */
     std::cout << "    Test non multi-threaded non real-time multiplayer restart" << std::endl;
     coordinator.SetMultithreaded(false);
@@ -344,7 +219,7 @@ bool TestRequestRestartGame(int argc, char** argv) {
     coordinator.CreateGame(sc2::kMapFastRestartMultiplayer);
     coordinator.JoinGame();
     /* ----------------------------------------------------------- */
-#endif
+
     /* Test multi-threaded non real-time multiplayer restart */
     std::cout << "    Test multi-threaded non real-time multiplayer restart" << std::endl;
     microBot.GetNumMultiplayerRestarts() = 0;
@@ -405,8 +280,8 @@ bool TestRequestRestartGame(int argc, char** argv) {
     }
     /* ----------------------------------------------------------- */
 #endif
-#endif
-    return true;
+
+    return bot.success_;
 }
 
 }

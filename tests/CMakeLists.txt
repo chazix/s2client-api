@@ -5,6 +5,8 @@ include_directories("${PROJECT_BINARY_DIR}/generated")
 file(GLOB test_SRC
     "*.h"
     "*.cc"
+    "../examples/common/*.h"
+    "../examples/common/*.cc"
 )
 
 # Setup MSVC parallelized builds
