@@ -40,6 +40,8 @@ enum class ClientError {
     WrongGameVersion,    /*! A replay was attempted to be loaded in the wrong game version. */
 };
 
+const char* GetErrorDetails(ClientError error);
+
 //! A set of common events a user can override in their derived bot or replay observer class.
 class ClientEvents {
 public:

@@ -22,6 +22,7 @@ namespace sc2 {
         SendCommandBot(Coordinator& coordinator) : MarineMicroBot(&coordinator), m_coordinator(coordinator) {
             m_commands = {
                 CommandInfo(SC2APIProtocol::RequestMapCommand::kRestartGame, "Reset"),
+                CommandInfo(SC2APIProtocol::RequestMapCommand::kCustom, "displace")
             };
         }
 

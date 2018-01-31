@@ -1080,6 +1080,7 @@ bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoic
         switch (choice) {
             case SC2APIProtocol::RequestMapCommand::kCustom:
                 mapCommand->set_trigger_cmd(commandId.c_str());
+                mapCommand->set_custom(true);
             break;
 
             case SC2APIProtocol::RequestMapCommand::kRestartGame:

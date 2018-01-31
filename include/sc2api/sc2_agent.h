@@ -44,6 +44,12 @@ public:
     //! The Coordinator that manages this Agent
     Coordinator* GetAgentCoordinator();
 
+#if DEBUG
+    virtual void OnError(
+        const std::vector<ClientError>& errors,
+        const std::vector<std::string>& error_strings) override;
+#endif
+
 private:
     AgentControlImp* agent_control_imp_;
 };

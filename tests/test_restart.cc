@@ -125,7 +125,7 @@ bool TestRequestRestartGame(int argc, char** argv) {
     std::cout << "    Testing non multi-threaded non real-time singleplayer restart" << std::endl;
     // Start the game.
     coordinator.LaunchStarcraft();
-    coordinator.StartGame(sc2::kMapFastRestartMultiplayer);
+    coordinator.StartGame(sc2::kMapEmpty);
 
     // Step forward the game simulation.
     while (!bot.IsFinished()) {
@@ -158,7 +158,7 @@ bool TestRequestRestartGame(int argc, char** argv) {
     });
 
     coordinator.LaunchStarcraft();
-    coordinator.StartGame(sc2::kMapFastRestartMultiplayer);
+    coordinator.StartGame(sc2::kMapEmpty);
 
     /* Test non multi-threaded real-time single player restart */
     std::cout << "    Testing non multi-threaded real-time singleplayer restart" << std::endl;

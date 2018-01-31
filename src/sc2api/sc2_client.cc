@@ -18,6 +18,25 @@
 
 namespace sc2 {
 
+    const char* GetErrorDetails(ClientError error) {
+        switch (error) {
+            case ClientError::ErrorSC2:            return "ErrorSC2";
+            case ClientError::InvalidAbilityRemap: return "An ability was improperly mapped to an ability id that doesn't exist.";
+            case ClientError::InvalidResponse:     return "The response does not contain a field that was expected.";
+            case ClientError::NoAbilitiesForTag:   return "The unit does not have any abilities.";
+            case ClientError::ResponseNotConsumed: return "A request was made without consuming the response from the previous request, that puts this library in an illegal state.";
+            case ClientError::ResponseMismatch:    return "The response received from SC2 does not match the request.";
+            case ClientError::ConnectionClosed:    return "The websocket connection has prematurely closed, this could mean starcraft crashed or a websocket timeout has occurred.";
+            case ClientError::SC2UnknownStatus:    return "SC2UnknownStatus";
+            case ClientError::SC2AppFailure:       return "SC2 has either crashed or been forcibly terminated by this library because it was not responding to requests.";
+            case ClientError::SC2ProtocolError:    return "The response from SC2 contains errors, most likely meaning the API was not used in a correct way.";
+            case ClientError::SC2ProtocolTimeout:  return "A request was made and a response was not received in the amount of time given by the timeout.";
+            case ClientError::WrongGameVersion:    return "A replay was attempted to be loaded in the wrong game version.";
+            default:
+                return "Unrecognized Error Code.";
+        }
+    }
+
 //-------------------------------------------------------------------------------------------------
 // ObservationImp: An implementation of ObservationInterface.
 //-------------------------------------------------------------------------------------------------
@@ -2009,8 +2028,9 @@ bool ControlImp::WaitJoinGame() {
         return false;
     }
 
-    if (response->error_size() > 0) {
+    if (response->join_game().has_error()) {
         std::cout << "Error in joining the game." << std::endl;
+        std::cout << response->join_game().error_details() << std::endl;
         assert(0);
         return false;
     }

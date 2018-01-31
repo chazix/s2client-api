@@ -407,4 +407,22 @@ Coordinator* Agent::GetAgentCoordinator() {
     return agent_control_imp_->coordinator_;
 }
 
+#if DEBUG
+void Agent::OnError(const std::vector<ClientError>& errors, const std::vector<std::string>& error_strings) {
+    if (!errors.empty()) {
+        std::cerr << "ClientErrors Encountered" << std::endl;
+        for (const auto& err : errors) {
+            std::cerr << GetErrorDetails(err) << std::endl;
+        }
+    }
+
+    if (!error_strings.empty()) {
+        std::cerr << "ProtocolErrors Encountered" << std::endl;
+        for (const auto& err : error_strings) {
+            std::cerr << err << std::endl;
+        }
+    }
+}
+#endif
+
 }
