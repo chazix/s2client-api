@@ -279,33 +279,51 @@ void CoordinatorImp::StartReplay() {
     starcraft_started_ = true;
 }
 
-static std::mutex wait_mutex;
+static std::mutex wait_mutex0, wait_mutex1;
 static int counter0 = 0;
 static int counter1 = 0;
+static uint32_t largest_game_loop = 0;
 
 static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
     if (imp->process_settings_.multi_threaded) {
         if (!imp->process_settings_.realtime) {
-            wait_mutex.lock();
+            /*for (auto agent : imp->agents_) {
+                uint32_t agents_game_loop = agent->Observation()->GetGameLoop();
+                if (agents_game_loop > largest_game_loop) {
+                    largest_game_loop = agents_game_loop;
+                }
+            }*/
+
+            wait_mutex0.lock();
             if (++counter0 == imp->agents_.size()) {
                 counter0 = 0;
             }
-            wait_mutex.unlock();
+            wait_mutex0.unlock();
             while (counter0 != 0) {
+                /*for (auto agent : imp->agents_) {
+                    // don't need to check ourselves since we are here
+                    if (agent == a) {
+                        continue;
+                    }
+                    //if (agent->Observation()->GetGameLoop() != largest_game_loop) {
+                    //    agent->Control()->GetObservation();
+                    //}
+                }*/
                 continue;
             }
             // wait for the threads to get here before continuing
 
-            wait_mutex.lock();
+            wait_mutex1.lock();
             if (!imp->game_ended_) {
                 imp->OnGameEnd(a->GetAgentCoordinator());
                 imp->game_ended_ = true;
+                largest_game_loop = 0;
             }
 
             if (++counter1 == imp->agents_.size()) {
                 counter1 = 0;
             }
-            wait_mutex.unlock();
+            wait_mutex1.unlock();
             while (counter1 != 0) {
                 continue;
             }
@@ -313,12 +331,34 @@ static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
         }
 
         // executes in multi-threaded realtime mode
-        wait_mutex.lock();
+        wait_mutex0.lock();
         if (!imp->game_ended_) {
-            imp->OnGameEnd(a->GetAgentCoordinator());
             imp->game_ended_ = true;
+
+            size_t notInGameCount = imp->agents_.size();
+            while (notInGameCount != 0) {
+                notInGameCount = imp->agents_.size();
+                for (auto agent : imp->agents_) {
+                    if (agent == a) { // we know this agents game has already ended
+                        --notInGameCount;
+                        continue;
+                    }
+
+                    if (agent->Control()->IsInGame()) {
+                        agent->Control()->Step();
+                        agent->Control()->WaitStep();
+                        agent->Control()->GetObservation();
+                        agent->Control()->IssueEvents(agent->Actions()->Commands());
+                        agent->Actions()->SendActions();
+                        continue;
+                    }
+                    --notInGameCount;
+                }
+            }
+
+            imp->OnGameEnd(a->GetAgentCoordinator());
         }
-        wait_mutex.unlock();
+        wait_mutex0.unlock();
         return;
     }
     
@@ -476,7 +516,7 @@ void CoordinatorImp::StepAgentsRealtime() {
                 a->Control()->RequestLeaveGame();
                 return;
             }
-
+            
             // these need to be executed here due to the agent parallelism when multi_threaded
             if (process_settings_.multi_threaded) {
                 if (!a->AgentControl()->HasRestartGameOccurred()) {
@@ -495,7 +535,6 @@ void CoordinatorImp::StepAgentsRealtime() {
         // RestartGame was requested during the last step
         if (a->AgentControl()->HasRestartGameOccurred()) {
             a->AgentControl()->SetRestartGameOccurred(false);
-            pump_restart_request_ = false;
         }
     };
 
@@ -999,8 +1038,10 @@ bool Coordinator::Update() {
     }
 
     // check agents for needing to RestartGame
-    // NOTE => commenting out multi_threaded check here allows restart to work during e_gameStateInGame
-    // TODO => Need to allow this to run for multithreaded for e_gameStateInGame restarts
+    // TODO: Need to allow this to run for multi-threaded for e_gameStateInGame restarts
+    // NOTE: Need to make a thread safe version of this for multi-threaded mode, else
+    // it's possible for the map commands to interleave causing a deadlock due to MapCommandReq -> MapCommandReq
+    // one being sent explicitly at endGame while the other is based on step count
     if (!imp_->process_settings_.multi_threaded && imp_->IsRegisteredForRestartGame()) {
         for (auto agent : imp_->agents_) {
             if (agent->Control()->IsInGame() && !imp_->pump_restart_request_) {
@@ -1014,7 +1055,7 @@ bool Coordinator::Update() {
             }
 
             if (!agentControl->HasRestartGameOccurred()) {
-                if (!imp_->process_settings_.realtime && !imp_->process_settings_.multi_threaded) {
+                if (!imp_->process_settings_.realtime) {
                     // need to send RequestRestartGame simultaneous to the clients in non-realtime mode
                     imp_->RestartGame();
                     break;
@@ -1068,9 +1109,12 @@ bool Coordinator::Update() {
     return !AllGamesEnded() || relaunched;
 }
 
+static std::mutex in_progress_;
+
 bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase choice, const std::string& commandId) {
     // first wait for any pending responses
-    WaitForAllResponses();
+    //WaitForAllResponses();
+    //std::lock_guard<std::mutex> lk(in_progress_);
 
     for (auto a : imp_->agents_) {
         ControlInterface* control = a->Control();
@@ -1198,6 +1242,10 @@ void CoordinatorImp::RestartGame(Agent* const agent) {
             CreateGame();
             JoinGame();
         }
+    }
+
+    if (pump_restart_request_) {
+        pump_restart_request_ = false;
     }
 }
 

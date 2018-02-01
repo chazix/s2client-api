@@ -29,8 +29,8 @@ namespace sc2 {
         virtual void OnStep() {
             if (++m_numSteps == CommandStepCount) {
                 const CommandInfo& cmdinfo = m_commands[m_commandIndex];
-                std::cout << "Sending MapCommand: (choice: " << cmdinfo.m_choice << "), (cmdid: " << cmdinfo.m_cmdid << ")" << std::endl;
-                m_coordinator.SendMapCommand(cmdinfo.m_choice, cmdinfo.m_cmdid);
+                //std::cout << "Sending MapCommand: (choice: " << cmdinfo.m_choice << "), (cmdid: " << cmdinfo.m_cmdid << ")" << std::endl;
+                //m_coordinator.SendMapCommand(cmdinfo.m_choice, cmdinfo.m_cmdid);
                 m_commandIndex = (m_commandIndex + 1) % m_commands.size();
                 m_numSteps = 0;
             }
@@ -58,8 +58,8 @@ namespace sc2 {
         }
 
         coordinator.RegisterOnGameEndCallback(CoordinatorOnGameEnd);
-        //coordinator.SetRealtime(true);
-        //coordinator.SetMultithreaded(true);
+        coordinator.SetRealtime(true);
+        coordinator.SetMultithreaded(true);
         SendCommandBot mapCommandBot(coordinator);
         Agent nothingBot(&coordinator);
         coordinator.SetParticipants({
