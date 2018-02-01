@@ -282,33 +282,16 @@ void CoordinatorImp::StartReplay() {
 static std::mutex wait_mutex0, wait_mutex1;
 static int counter0 = 0;
 static int counter1 = 0;
-static uint32_t largest_game_loop = 0;
 
 static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
     if (imp->process_settings_.multi_threaded) {
         if (!imp->process_settings_.realtime) {
-            /*for (auto agent : imp->agents_) {
-                uint32_t agents_game_loop = agent->Observation()->GetGameLoop();
-                if (agents_game_loop > largest_game_loop) {
-                    largest_game_loop = agents_game_loop;
-                }
-            }*/
-
             wait_mutex0.lock();
             if (++counter0 == imp->agents_.size()) {
                 counter0 = 0;
             }
             wait_mutex0.unlock();
             while (counter0 != 0) {
-                /*for (auto agent : imp->agents_) {
-                    // don't need to check ourselves since we are here
-                    if (agent == a) {
-                        continue;
-                    }
-                    //if (agent->Observation()->GetGameLoop() != largest_game_loop) {
-                    //    agent->Control()->GetObservation();
-                    //}
-                }*/
                 continue;
             }
             // wait for the threads to get here before continuing
@@ -317,7 +300,6 @@ static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
             if (!imp->game_ended_) {
                 imp->OnGameEnd(a->GetAgentCoordinator());
                 imp->game_ended_ = true;
-                largest_game_loop = 0;
             }
 
             if (++counter1 == imp->agents_.size()) {
@@ -331,34 +313,7 @@ static void GameEndHelper(CoordinatorImp* imp, Agent* a) {
         }
 
         // executes in multi-threaded realtime mode
-        wait_mutex0.lock();
-        if (!imp->game_ended_) {
-            imp->game_ended_ = true;
-
-            size_t notInGameCount = imp->agents_.size();
-            while (notInGameCount != 0) {
-                notInGameCount = imp->agents_.size();
-                for (auto agent : imp->agents_) {
-                    if (agent == a) { // we know this agents game has already ended
-                        --notInGameCount;
-                        continue;
-                    }
-
-                    if (agent->Control()->IsInGame()) {
-                        agent->Control()->Step();
-                        agent->Control()->WaitStep();
-                        agent->Control()->GetObservation();
-                        agent->Control()->IssueEvents(agent->Actions()->Commands());
-                        agent->Actions()->SendActions();
-                        continue;
-                    }
-                    --notInGameCount;
-                }
-            }
-
-            imp->OnGameEnd(a->GetAgentCoordinator());
-        }
-        wait_mutex0.unlock();
+        // => currently not supported
         return;
     }
     
@@ -1112,9 +1067,12 @@ bool Coordinator::Update() {
 static std::mutex in_progress_;
 
 bool Coordinator::SendMapCommand(SC2APIProtocol::RequestMapCommand::CommandChoiceCase choice, const std::string& commandId) {
-    // first wait for any pending responses
-    //WaitForAllResponses();
-    //std::lock_guard<std::mutex> lk(in_progress_);
+    if (imp_->process_settings_.multi_threaded && imp_->process_settings_.realtime) {
+        if (choice == SC2APIProtocol::RequestMapCommand::kRestartGame) {
+            std::cout << "MapCommand RestartGame is not support in multi-threaded realtime, instead register the coordinator for RestartGame if you want to reset OnGameEnd" << std::endl;
+            return false;
+        }
+    }
 
     for (auto a : imp_->agents_) {
         ControlInterface* control = a->Control();
