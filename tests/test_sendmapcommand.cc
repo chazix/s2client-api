@@ -58,7 +58,7 @@ namespace sc2 {
         }
 
         coordinator.RegisterOnGameEndCallback(CoordinatorOnGameEnd);
-        coordinator.SetRealtime(true);
+        //coordinator.SetRealtime(true);
         coordinator.SetMultithreaded(true);
         SendCommandBot mapCommandBot(coordinator);
         Agent nothingBot(&coordinator);

@@ -490,6 +490,7 @@ void CoordinatorImp::StepAgentsRealtime() {
         // RestartGame was requested during the last step
         if (a->AgentControl()->HasRestartGameOccurred()) {
             a->AgentControl()->SetRestartGameOccurred(false);
+            pump_restart_request_ = false;
         }
     };
 
